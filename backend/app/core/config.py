@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Application Info
-    APP_NAME: str = "TradeWise"
+    APP_NAME: str = "TradeVision"
     APP_VERSION: str = "1.0.0"
     ENV: str = "development"
     LOG_LEVEL: str = "INFO"

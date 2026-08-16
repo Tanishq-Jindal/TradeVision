@@ -50,7 +50,7 @@ async def generate_offline_advisor_response(message: str, symbol: Optional[str] 
             f"- 1-Day 95% Value at Risk (VaR): **${risk.var_95:,.2f}**\n"
             f"- Sharpe Ratio: **{risk.sharpe_ratio:.2f}**\n"
             f"- 30-Day Monte Carlo 95% Projection: **${risk.monte_carlo_95_ci_lower:,.2f} to ${risk.monte_carlo_95_ci_upper:,.2f}**\n\n"
-            f"**TradeWise Recommendation:**\n"
+            f"**TradeVision Recommendation:**\n"
             f"Based on the alignment between the ML {pred.direction.lower()} signal and {sent.sentiment_label.lower()} news sentiment, "
             f"maintain a disciplined position size within your virtual portfolio cash allocation."
         )

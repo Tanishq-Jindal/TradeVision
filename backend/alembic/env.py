@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# Import TradeWise configuration and models
+# Import TradeVision configuration and models
 from app.core.config import settings
 from app.db.base import Base
 # Import all models to ensure metadata registration

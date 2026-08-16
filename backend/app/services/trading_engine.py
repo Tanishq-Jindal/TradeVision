@@ -5,7 +5,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.errors import InsufficientFundsError, NotFoundError, TradeWiseException
+from app.core.errors import InsufficientFundsError, NotFoundError, TradeVisionException
 from app.models.portfolio import Portfolio
 from app.models.position import Position
 from app.models.trade import Trade
@@ -143,7 +143,7 @@ async def execute_sell(db: AsyncSession, user_id: int, order: TradeOrderRequest)
 
     held_qty = float(position.quantity) if position else 0.0
     if not position or held_qty < order.quantity:
-        raise TradeWiseException(
+        raise TradeVisionException(
             message=f"Insufficient shares to complete sell order. Held: {held_qty}, Requested: {order.quantity}",
             code="INSUFFICIENT_SHARES",
             status_code=422,
@@ -226,7 +226,7 @@ async def execute_order(db: AsyncSession, user_id: int, order: OrderRequest) -> 
             ),
         )
     else:
-        raise TradeWiseException(
+        raise TradeVisionException(
             message=f"Unsupported order side: {order.side}. Supported: BUY, SELL",
             code="INVALID_ORDER_SIDE",
             status_code=422,

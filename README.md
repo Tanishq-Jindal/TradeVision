@@ -1,9 +1,9 @@
-# TradeWise
+# TradeVision
 
 > Full-stack, AI-assisted paper trading and portfolio intelligence platform.
 > Built for III 5.0 Hackathon.
 
-TradeWise provides quantitative learners and retail traders with a unified, professional trading intelligence workflow:
+TradeVision provides quantitative learners and retail traders with a unified, professional trading intelligence workflow:
 ```
 Market Data → ML Directional Predictions → Sentiment Analysis → Multi-Agent Swarm → Risk Analytics → Paper Execution → Natural Language Backtesting
 ```
@@ -46,7 +46,7 @@ Market Data → ML Directional Predictions → Sentiment Analysis → Multi-Agen
 ## Demo Account Credentials
 
 For instant platform testing and evaluation:
-- **Email:** `demo@tradewise.cloud`
+- **Email:** `demo@tradevision.cloud`
 - **Password:** `demo123`
 - **Starting Portfolio:** `$100,000.00` virtual cash
 
@@ -97,7 +97,7 @@ npm install
 npm run dev
 ```
 
-### 3. Running Automated Tests (41/41 Tests)
+### 3. Running Automated Tests (43/43 Tests)
 ```bash
 cd backend
 .\.venv\Scripts\python -m pytest -v

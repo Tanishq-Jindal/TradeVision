@@ -12,7 +12,7 @@ from app.schemas.auth import UserLoginRequest, UserRegisterRequest
 
 logger = logging.getLogger(__name__)
 
-DEMO_USER_EMAIL = "demo@tradewise.cloud"
+DEMO_USER_EMAIL = "demo@tradevision.cloud"
 DEMO_USER_PASSWORD = "demo123"
 INITIAL_PORTFOLIO_CASH = 100000.00
 
@@ -107,7 +107,7 @@ async def authenticate_user(db: AsyncSession, login_data: UserLoginRequest) -> U
 
 async def seed_demo_user(db: AsyncSession) -> User:
     """
-    Idempotently seeds the demo user (demo@tradewise.cloud / demo123) with a $100,000 portfolio.
+    Idempotently seeds the demo user (demo@tradevision.cloud / demo123) with a $100,000 portfolio.
     If the demo user already exists, returns the existing record without resetting portfolio balance.
     """
     existing_user = await get_user_by_email(db, DEMO_USER_EMAIL)

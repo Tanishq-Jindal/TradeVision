@@ -163,7 +163,7 @@ export default function HomePage() {
   const handleQuickDemoLogin = async () => {
     setLoggingInDemo(true);
     try {
-      await login({ email: "demo@tradewise.cloud", password: "demo123" });
+      await login({ email: "demo@tradevision.cloud", password: "demo123" });
     } catch (err) {
       console.error("Demo login error:", err);
     } finally {
@@ -190,7 +190,7 @@ export default function HomePage() {
             </div>
             <div>
               <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-                TradeWise
+                TradeVision
               </span>
               <span className="ml-2.5 text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
                 AI Trading Intelligence
@@ -353,7 +353,7 @@ export default function HomePage() {
               Master Equities Trading With Layered AI Intelligence
             </h1>
             <p className="text-slate-400 text-sm max-w-xl mx-auto leading-relaxed">
-              Experience the full TradeWise terminal: ML directional signals, 4-agent swarm consensus, autonomous signal scanning, natural language backtesting, and guardrailed autopilot paper execution.
+              Experience the full TradeVision terminal: ML directional signals, 4-agent swarm consensus, autonomous signal scanning, natural language backtesting, and guardrailed autopilot paper execution.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
               <Link
@@ -453,7 +453,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-800/80 bg-slate-950/40 px-6 py-6 text-center text-xs text-slate-500">
-        TradeWise · Full-Stack AI Paper Trading & Portfolio Intelligence Platform · Built for III 5.0 Hackathon
+        TradeVision · Full-Stack AI Paper Trading & Portfolio Intelligence Platform · Built for III 5.0 Hackathon
       </footer>
     </div>
   );

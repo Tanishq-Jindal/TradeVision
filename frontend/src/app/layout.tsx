@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "TradeWise | AI-Assisted Paper Trading & Intelligence",
+  title: "TradeVision | AI-Assisted Paper Trading & Intelligence",
   description:
     "Full-stack AI paper trading platform with ML direction signals, FinBERT sentiment, and guardrailed risk intelligence.",
 };

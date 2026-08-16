@@ -8,7 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 logger = logging.getLogger(__name__)
 
 
-class TradeWiseException(Exception):
+class TradeVisionException(Exception):
     def __init__(
         self,
         message: str,
@@ -23,7 +23,11 @@ class TradeWiseException(Exception):
         super().__init__(message)
 
 
-class NotFoundError(TradeWiseException):
+# Backward compatibility alias
+TradeWiseException = TradeVisionException
+
+
+class NotFoundError(TradeVisionException):
     def __init__(self, message: str = "Resource not found", details: Optional[Dict[str, Any]] = None, code: str = "NOT_FOUND"):
         super().__init__(
             message=message,
@@ -33,7 +37,7 @@ class NotFoundError(TradeWiseException):
         )
 
 
-class UnauthorizedError(TradeWiseException):
+class UnauthorizedError(TradeVisionException):
     def __init__(self, message: str = "Authentication required", details: Optional[Dict[str, Any]] = None, code: str = "UNAUTHORIZED"):
         super().__init__(
             message=message,
@@ -43,7 +47,7 @@ class UnauthorizedError(TradeWiseException):
         )
 
 
-class ForbiddenError(TradeWiseException):
+class ForbiddenError(TradeVisionException):
     def __init__(self, message: str = "Access forbidden", details: Optional[Dict[str, Any]] = None, code: str = "FORBIDDEN"):
         super().__init__(
             message=message,
@@ -53,7 +57,7 @@ class ForbiddenError(TradeWiseException):
         )
 
 
-class ConflictError(TradeWiseException):
+class ConflictError(TradeVisionException):
     def __init__(self, message: str = "Resource conflict", details: Optional[Dict[str, Any]] = None, code: str = "CONFLICT"):
         super().__init__(
             message=message,
@@ -63,7 +67,7 @@ class ConflictError(TradeWiseException):
         )
 
 
-class InsufficientFundsError(TradeWiseException):
+class InsufficientFundsError(TradeVisionException):
     def __init__(self, message: str = "Insufficient cash balance for this trade", details: Optional[Dict[str, Any]] = None, code: str = "INSUFFICIENT_CASH"):
         super().__init__(
             message=message,
@@ -73,7 +77,7 @@ class InsufficientFundsError(TradeWiseException):
         )
 
 
-class ServiceUnavailableError(TradeWiseException):
+class ServiceUnavailableError(TradeVisionException):
     def __init__(self, message: str = "Service temporarily unavailable", details: Optional[Dict[str, Any]] = None, code: str = "SERVICE_UNAVAILABLE"):
         super().__init__(
             message=message,
@@ -84,10 +88,10 @@ class ServiceUnavailableError(TradeWiseException):
 
 
 def register_error_handlers(app: FastAPI) -> None:
-    @app.exception_handler(TradeWiseException)
-    async def tradewise_exception_handler(request: Request, exc: TradeWiseException) -> JSONResponse:
+    @app.exception_handler(TradeVisionException)
+    async def tradevision_exception_handler(request: Request, exc: TradeVisionException) -> JSONResponse:
         logger.warning(
-            f"TradeWiseException: {exc.code} - {exc.message}",
+            f"TradeVisionException: {exc.code} - {exc.message}",
             extra={"error_code": exc.code, "details": exc.details, "path": request.url.path},
         )
         return JSONResponse(
@@ -108,38 +112,37 @@ def register_error_handlers(app: FastAPI) -> None:
             f"Validation error on {request.url.path}: {errors}",
             extra={"validation_errors": errors, "path": request.url.path},
         )
+        details = {}
+        for err in errors:
+            loc = " -> ".join(str(l) for l in err.get("loc", []))
+            details[loc] = err.get("msg", "Invalid value")
+
         return JSONResponse(
-            status_code=422,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
                 "error": {
                     "code": "VALIDATION_ERROR",
-                    "message": "The request payload failed validation.",
-                    "details": {"errors": errors},
+                    "message": "The request payload failed schema validation.",
+                    "details": details,
                 }
             },
         )
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        logger.warning(
-            f"HTTPException: {exc.status_code} - {exc.detail}",
-            extra={"status_code": exc.status_code, "path": request.url.path},
-        )
-        code = "HTTP_ERROR"
-        if exc.status_code == 404:
-            code = "NOT_FOUND"
-        elif exc.status_code == 401:
-            code = "UNAUTHORIZED"
-        elif exc.status_code == 403:
-            code = "FORBIDDEN"
-        elif exc.status_code == 409:
-            code = "CONFLICT"
-
+        code_map = {
+            404: "NOT_FOUND",
+            401: "UNAUTHORIZED",
+            403: "FORBIDDEN",
+            405: "METHOD_NOT_ALLOWED",
+            500: "INTERNAL_SERVER_ERROR",
+        }
+        err_code = code_map.get(exc.status_code, f"HTTP_{exc.status_code}")
         return JSONResponse(
             status_code=exc.status_code,
             content={
                 "error": {
-                    "code": code,
+                    "code": err_code,
                     "message": str(exc.detail),
                     "details": {},
                 }
@@ -147,9 +150,9 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(Exception)
-    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.error(
-            f"Unhandled exception on {request.url.path}: {str(exc)}",
+            f"Unhandled server error on {request.url.path}: {str(exc)}",
             exc_info=True,
             extra={"path": request.url.path},
         )

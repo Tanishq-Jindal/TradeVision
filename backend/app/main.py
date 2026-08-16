@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="TradeWise - AI-Assisted Paper Trading & Portfolio Intelligence Platform",
+    description="TradeVision - AI-Assisted Paper Trading & Portfolio Intelligence Platform",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",

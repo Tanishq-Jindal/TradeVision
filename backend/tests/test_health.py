@@ -1,7 +1,7 @@
 import pytest
 from httpx import AsyncClient
 from unittest.mock import patch
-from app.core.errors import TradeWiseException, InsufficientFundsError, NotFoundError
+from app.core.errors import TradeVisionException, InsufficientFundsError, NotFoundError
 
 
 @pytest.mark.asyncio
@@ -47,7 +47,7 @@ async def test_health_service_degradation_handling(async_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_custom_exception_error_envelope(async_client: AsyncClient):
-    """Verify custom TradeWiseException returns the standard error envelope."""
+    """Verify custom TradeVisionException returns the standard error envelope."""
     # Temporarily mount a test route raising InsufficientFundsError
     from app.main import app
 

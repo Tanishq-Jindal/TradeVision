@@ -73,7 +73,7 @@ export default function RegisterPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
               <TrendingUp className="w-5 h-5 text-white" />
             </div>
-            <span className="text-2xl font-bold tracking-tight text-white">TradeWise</span>
+            <span className="text-2xl font-bold tracking-tight text-white">TradeVision</span>
           </Link>
           <h2 className="text-xl font-semibold text-slate-200">Create your account</h2>
           <p className="text-xs text-slate-400">Start paper trading real US equities with virtual capital</p>
