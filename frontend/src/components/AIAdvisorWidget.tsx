@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { Bot, User, Send, Sparkles, Loader2, ArrowRight } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Bot, User, Send, Sparkles, Loader2, ArrowRight, ChevronDown } from "lucide-react";
 import { API_BASE_URL, getStoredToken } from "@/lib/api";
 
 function formatInlineText(text: string): React.ReactNode[] {
@@ -171,6 +171,8 @@ interface AIAdvisorWidgetProps {
   symbol: string;
 }
 
+const BOTTOM_THRESHOLD = 75; // px
+
 export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -181,7 +183,40 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Smart Chat Scrolling
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef<boolean>(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+
+  const checkIsNearBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return distanceFromBottom <= BOTTOM_THRESHOLD;
+  }, []);
+
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    isNearBottomRef.current = true;
+    setShowScrollBottom(false);
+    if (smooth) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const nearBottom = checkIsNearBottom();
+    isNearBottomRef.current = nearBottom;
+    if (nearBottom && showScrollBottom) {
+      setShowScrollBottom(false);
+    } else if (!nearBottom && !showScrollBottom) {
+      setShowScrollBottom(true);
+    }
+  }, [checkIsNearBottom, showScrollBottom]);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -198,10 +233,6 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
     checkStatus();
   }, []);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
   const handleSend = async (userMsg: string) => {
     if (!userMsg.trim() || loading) return;
 
@@ -209,6 +240,11 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
     setMessages(newMsgs);
     setInput("");
     setLoading(true);
+
+    // Initial position to bottom ONCE when user asks a question
+    isNearBottomRef.current = true;
+    setShowScrollBottom(false);
+    setTimeout(() => scrollToBottom(true), 50);
 
     // Create placeholder assistant message
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
@@ -262,6 +298,11 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
                   };
                   return updated;
                 });
+                // Only follow bottom if user has NOT scrolled away
+                if (isNearBottomRef.current && scrollContainerRef.current) {
+                  const el = scrollContainerRef.current;
+                  el.scrollTop = el.scrollHeight;
+                }
               } else if (data.error && !accumulated) {
                 accumulated = data.error;
                 setMessages((prev) => {
@@ -272,6 +313,10 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
                   };
                   return updated;
                 });
+                if (isNearBottomRef.current && scrollContainerRef.current) {
+                  const el = scrollContainerRef.current;
+                  el.scrollTop = el.scrollHeight;
+                }
               }
             } catch {}
           }
@@ -301,6 +346,10 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
                 };
                 return updated;
               });
+              if (isNearBottomRef.current && scrollContainerRef.current) {
+                const el = scrollContainerRef.current;
+                el.scrollTop = el.scrollHeight;
+              }
             }
           }
         } catch {}
@@ -356,38 +405,55 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1 text-xs">
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`flex items-start gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            {m.role === "assistant" && (
-              <div className="w-6 h-6 rounded-md bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
-                <Bot className="w-3.5 h-3.5" />
-              </div>
-            )}
+      <div className="relative flex-1 min-h-0 flex flex-col my-1">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto py-2 space-y-3 pr-1 text-xs"
+        >
+          {messages.map((m, i) => (
             <div
-              className={`p-3 rounded-xl max-w-[85%] leading-relaxed ${
-                m.role === "user"
-                  ? "bg-blue-600 text-white shadow-md whitespace-pre-wrap"
-                  : "bg-slate-900/80 border border-slate-800 text-slate-200"
-              }`}
+              key={i}
+              className={`flex items-start gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {m.role === "user" ? (
-                <div>{m.content}</div>
-              ) : (
-                <RenderFormattedContent content={m.content} />
+              {m.role === "assistant" && (
+                <div className="w-6 h-6 rounded-md bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="w-3.5 h-3.5" />
+                </div>
+              )}
+              <div
+                className={`p-3 rounded-xl max-w-[85%] leading-relaxed ${
+                  m.role === "user"
+                    ? "bg-blue-600 text-white shadow-md whitespace-pre-wrap"
+                    : "bg-slate-900/80 border border-slate-800 text-slate-200"
+                }`}
+              >
+                {m.role === "user" ? (
+                  <div>{m.content}</div>
+                ) : (
+                  <RenderFormattedContent content={m.content} />
+                )}
+              </div>
+              {m.role === "user" && (
+                <div className="w-6 h-6 rounded-md bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="w-3.5 h-3.5" />
+                </div>
               )}
             </div>
-            {m.role === "user" && (
-              <div className="w-6 h-6 rounded-md bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 mt-0.5">
-                <User className="w-3.5 h-3.5" />
-              </div>
-            )}
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
+          ))}
+        </div>
+
+        {/* Floating "Jump to latest" button */}
+        {showScrollBottom && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom(true)}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-xl border border-blue-400/40 text-[11px] font-medium flex items-center gap-1.5 transition-all duration-200 hover:scale-105 z-10"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+            <span>Jump to latest</span>
+          </button>
+        )}
       </div>
 
       {/* Quick Prompts */}
