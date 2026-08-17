@@ -84,3 +84,14 @@ def test_app_name_empty_fallback():
     app = FastAPI(title=empty_settings.APP_NAME or "TradeVision")
     assert app.title == "TradeVision"
 
+
+def test_redis_url_optional_normalization():
+    """Verify REDIS_URL safely resolves to None when omitted, empty, or disabled."""
+    assert Settings(REDIS_URL=None).REDIS_URL is None
+    assert Settings(REDIS_URL="").REDIS_URL is None
+    assert Settings(REDIS_URL="   ").REDIS_URL is None
+    assert Settings(REDIS_URL="none").REDIS_URL is None
+    assert Settings(REDIS_URL="disabled").REDIS_URL is None
+    assert Settings(REDIS_URL="redis://custom-redis.render.internal:6379/0").REDIS_URL == "redis://custom-redis.render.internal:6379/0"
+
+

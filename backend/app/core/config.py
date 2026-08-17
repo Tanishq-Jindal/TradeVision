@@ -1,4 +1,4 @@
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     # Database (Defaults to asyncpg driver for asynchronous SQLAlchemy engine)
     DATABASE_URL: str = "postgresql+asyncpg://tradewise:tradewise123@localhost:5432/tradewise"
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Redis (Optional distributed cache; defaults to None if not configured)
+    REDIS_URL: Optional[str] = None
 
     # Security
     JWT_SECRET: str = "super-secret-tradewise-jwt-development-key-32chars"
@@ -49,6 +49,19 @@ class Settings(BaseSettings):
         if not v or not isinstance(v, str) or not v.strip():
             return "1.0.0"
         return v.strip()
+
+    @field_validator("REDIS_URL", mode="before")
+    @classmethod
+    def assemble_redis_url(cls, v: Union[str, Any]) -> Optional[str]:
+        """Normalizes REDIS_URL or returns None if omitted or disabled."""
+        if not v or not isinstance(v, str) or not v.strip():
+            return None
+        url = v.strip()
+        if (url.startswith('"') and url.endswith('"')) or (url.startswith("'") and url.endswith("'")):
+            url = url[1:-1].strip()
+        if url.lower() in ("none", "disabled", "false", "off", "null", "not_configured", ""):
+            return None
+        return url
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod

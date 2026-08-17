@@ -46,6 +46,20 @@ async def test_health_service_degradation_handling(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_health_service_redis_disabled(async_client: AsyncClient):
+    """Verify health endpoint reports Redis as disabled and overall status as ok when REDIS_URL is None."""
+    with patch("app.services.health.settings.REDIS_URL", None):
+        response = await async_client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["db"] == "ok"
+        assert data["redis"] == "disabled"
+        assert data["services"]["redis"]["status"] == "disabled"
+        assert data["services"]["redis"]["error"] is None
+
+
+@pytest.mark.asyncio
 async def test_custom_exception_error_envelope(async_client: AsyncClient):
     """Verify custom TradeVisionException returns the standard error envelope."""
     # Temporarily mount a test route raising InsufficientFundsError

@@ -58,6 +58,8 @@ TTL_NEWS = 900
 
 
 def _get_redis_client() -> Optional[aioredis.Redis]:
+    if not settings.REDIS_URL:
+        return None
     try:
         return aioredis.from_url(
             settings.REDIS_URL,

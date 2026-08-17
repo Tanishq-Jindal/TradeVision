@@ -11,9 +11,12 @@ logger = logging.getLogger(__name__)
 
 async def check_redis_health() -> tuple[bool, str, float]:
     """
-    Performs a real Redis ping health check.
+    Performs a real Redis ping health check if REDIS_URL is configured.
     Returns: (is_healthy, status_message, latency_ms)
     """
+    if not settings.REDIS_URL:
+        return True, "disabled", 0.0
+
     start_time = time.perf_counter()
     client = None
     try:
@@ -48,17 +51,26 @@ async def get_system_health() -> HealthResponse:
     db_healthy, db_status, db_latency = await check_db_health()
     redis_healthy, redis_status, redis_latency = await check_redis_health()
 
-    if db_healthy and redis_healthy:
-        overall_status = "ok"
-    elif db_healthy or redis_healthy:
-        overall_status = "degraded"
+    # Determine overall status:
+    # Database is critical; Redis is optional.
+    # If DB is healthy and Redis is healthy/disabled -> "ok"
+    # If DB is healthy but Redis is configured and failing -> "degraded"
+    # If DB is unhealthy -> "unhealthy"
+    if db_healthy:
+        if redis_healthy:
+            overall_status = "ok"
+        else:
+            overall_status = "degraded"
     else:
         overall_status = "unhealthy"
+
+    redis_display = "disabled" if redis_status == "disabled" else ("ok" if redis_healthy else redis_status)
+    redis_service_status = "disabled" if redis_status == "disabled" else ("ok" if redis_healthy else "unhealthy")
 
     return HealthResponse(
         status=overall_status,
         db="ok" if db_healthy else db_status,
-        redis="ok" if redis_healthy else redis_status,
+        redis=redis_display,
         version=settings.APP_VERSION,
         timestamp=datetime.now(timezone.utc).isoformat(),
         services={
@@ -68,7 +80,7 @@ async def get_system_health() -> HealthResponse:
                 error=None if db_healthy else db_status,
             ),
             "redis": ServiceHealth(
-                status="ok" if redis_healthy else "unhealthy",
+                status=redis_service_status,
                 latency_ms=redis_latency,
                 error=None if redis_healthy else redis_status,
             ),
