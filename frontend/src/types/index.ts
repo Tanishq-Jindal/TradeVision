@@ -70,7 +70,10 @@ export interface Quote {
   low?: number;
   open?: number;
   timestamp?: number;
-  simulated: boolean;
+  simulated?: boolean;
+  provider?: string;
+  market_status?: string;
+  source?: string;
   c: number;
   d: number;
   dp: number;

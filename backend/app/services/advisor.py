@@ -425,10 +425,11 @@ async def get_advisor_chat_response(
         + "INSTRUCTIONS:\n"
         + "1. Respond directly, concisely, and insightfully to the user's question.\n"
         + "2. When discussing the user's balance or holdings, naturally reference figures from Account Data above (e.g. 'You have $101,938.25 in available virtual cash'). NEVER invent fake numbers.\n"
-        + "3. Do NOT append unsolicited 'Portfolio Context & Allocation Note' headers or portfolio dumps if the user is asking a general question (e.g. gold, concepts, general market questions). Only mention portfolio data when directly relevant or asked.\n"
-        + "4. Do NOT use raw LaTeX math delimiters ($$, \\text{}, \\times, \\frac{}). Write formulas and equations in clear, natural, readable plain text (e.g. '22K Gold Price = 24K Spot Price × 0.9167').\n"
-        + "5. Clearly distinguish educational/paper-trading analysis from verified financial advice.\n"
-        + "6. Format your output with clean GitHub markdown headers, bullet points, and bold text."
+        + "3. When discussing stock tickers, use ONLY the supplied real market data above. NEVER invent, estimate, simulate, or hallucinate current prices, daily changes, or OHLC values. If live data is unavailable for a requested symbol, state that live market data is currently unavailable rather than inventing numbers.\n"
+        + "4. Do NOT append unsolicited 'Portfolio Context & Allocation Note' headers or portfolio dumps if the user is asking a general question (e.g. gold, concepts, general market questions). Only mention portfolio data when directly relevant or asked.\n"
+        + "5. Do NOT use raw LaTeX math delimiters ($$, \\text{}, \\times, \\frac{}). Write formulas and equations in clear, natural, readable plain text (e.g. '22K Gold Price = 24K Spot Price × 0.9167').\n"
+        + "6. Clearly distinguish educational/paper-trading analysis from verified financial advice.\n"
+        + "7. Format your output with clean GitHub markdown headers, bullet points, and bold text."
     )
 
     # 6. Call Google Gemini API

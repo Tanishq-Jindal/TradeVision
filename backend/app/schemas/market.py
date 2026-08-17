@@ -16,6 +16,9 @@ class QuoteResponse(BaseModel):
     open: float = Field(0.0, description="Open price of the day")
     timestamp: int = Field(0, description="UNIX timestamp in seconds")
     simulated: bool = Field(False, description="Flag indicating if the quote is simulated")
+    provider: str = Field("Real-Time Market Feed", description="Market data provider")
+    market_status: str = Field("Live", description="Market session status: Live, Closed, After-Hours, or Delayed")
+    source: str = Field("Live Exchange Feed", description="Data source description")
 
     # Short aliases
     c: float = Field(0.0, description="Current price alias")
@@ -92,6 +95,9 @@ class OHLCVResponse(BaseModel):
     timeframe: str = "1D"
     candles: List[CandleBar]
     simulated: bool = False
+    provider: str = "Real-Time Market Feed"
+    market_status: str = "Live"
+    source: str = "Live Exchange Feed"
 
 
 class NewsArticle(BaseModel):

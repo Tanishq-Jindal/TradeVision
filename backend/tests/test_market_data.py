@@ -29,8 +29,8 @@ async def test_symbol_search_autocomplete(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_get_quote_structure_and_simulated_flag(async_client: AsyncClient):
-    """Verify quote endpoint returns valid price fields and labeled simulated state."""
+async def test_get_quote_structure_and_real_data_flag(async_client: AsyncClient):
+    """Verify quote endpoint returns real price fields, positive prices, and real provider status."""
     # Register and authenticate
     reg = await async_client.post(
         "/api/v1/auth/register",
@@ -50,7 +50,9 @@ async def test_get_quote_structure_and_simulated_flag(async_client: AsyncClient)
     assert data["high"] >= data["low"]
     assert data["open"] > 0
     assert data["previous_close"] > 0
-    assert isinstance(data["simulated"], bool)
+    assert data["simulated"] is False
+    assert "provider" in data
+    assert "market_status" in data
 
 
 @pytest.mark.asyncio

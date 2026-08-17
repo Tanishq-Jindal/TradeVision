@@ -29,11 +29,23 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
     ]
 
-    # External APIs (Optional for early sprints)
+    # External APIs (Market Data & AI)
     FINNHUB_API_KEY: str = ""
+    MARKET_DATA_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
     HUGGINGFACE_API_KEY: str = ""
+
+    @field_validator("MARKET_DATA_API_KEY", "FINNHUB_API_KEY", mode="before")
+    @classmethod
+    def assemble_market_data_api_key(cls, v: Union[str, Any]) -> str:
+        """Normalizes market data API keys, stripping quotes, whitespace, and disabled tokens."""
+        if not v or not isinstance(v, str):
+            return ""
+        k = v.strip().strip("'\"` \r\n\t")
+        if k.lower() in ("none", "null", "disabled", "false", "off", "undefined", ""):
+            return ""
+        return k
 
     @field_validator("GEMINI_API_KEY", mode="before")
     @classmethod
