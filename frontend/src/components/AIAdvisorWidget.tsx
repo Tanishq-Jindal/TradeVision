@@ -4,6 +4,164 @@ import React, { useState, useRef, useEffect } from "react";
 import { Bot, User, Send, Sparkles, Loader2, ArrowRight } from "lucide-react";
 import { API_BASE_URL, getStoredToken } from "@/lib/api";
 
+function formatInlineText(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith("`") && token.endsWith("`")) {
+      parts.push(
+        <code
+          key={match.index}
+          className="px-1.5 py-0.5 rounded bg-slate-800/90 border border-slate-700/80 text-blue-300 font-mono text-[11px]"
+        >
+          {token.slice(1, -1)}
+        </code>
+      );
+    } else if (token.startsWith("**") && token.endsWith("**")) {
+      parts.push(
+        <strong key={match.index} className="font-semibold text-white">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      parts.push(
+        <em key={match.index} className="italic text-slate-300">
+          {token.slice(1, -1)}
+        </em>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
+
+function RenderFormattedContent({ content }: { content: string }) {
+  // Strip stray raw LaTeX delimiters in frontend if any
+  let cleaned = content
+    .replace(/\$\$\s*([\s\S]*?)\s*\$\$/g, "$1")
+    .replace(/\\text\{([^{}]+)\}/g, "$1")
+    .replace(/\\times\b/g, "×")
+    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "($1 / $2)");
+
+  const lines = cleaned.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let listItems: string[] = [];
+
+  const flushList = (keyPrefix: number) => {
+    if (listItems.length > 0) {
+      nodes.push(
+        <ul key={`ul-${keyPrefix}`} className="space-y-1.5 my-1.5">
+          {listItems.map((item, idx) => (
+            <li key={idx} className="flex items-start gap-2 text-slate-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
+              <span className="flex-1">{formatInlineText(item)}</span>
+            </li>
+          ))}
+        </ul>
+      );
+      listItems = [];
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushList(idx);
+      return;
+    }
+
+    // Horizontal Rule
+    if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
+      flushList(idx);
+      nodes.push(<hr key={idx} className="border-slate-800 my-2" />);
+      return;
+    }
+
+    // Headings
+    if (trimmed.startsWith("#### ")) {
+      flushList(idx);
+      nodes.push(
+        <h5 key={idx} className="text-xs font-bold text-blue-300 mt-2 mb-1">
+          {formatInlineText(trimmed.replace(/^####\s+/, ""))}
+        </h5>
+      );
+      return;
+    }
+    if (trimmed.startsWith("### ")) {
+      flushList(idx);
+      nodes.push(
+        <h4 key={idx} className="text-xs font-bold text-white mt-2.5 mb-1 flex items-center gap-1.5">
+          {formatInlineText(trimmed.replace(/^###\s+/, ""))}
+        </h4>
+      );
+      return;
+    }
+    if (trimmed.startsWith("## ")) {
+      flushList(idx);
+      nodes.push(
+        <h3 key={idx} className="text-sm font-bold text-white mt-3 mb-1.5 border-b border-slate-800/80 pb-1">
+          {formatInlineText(trimmed.replace(/^##\s+/, ""))}
+        </h3>
+      );
+      return;
+    }
+    if (trimmed.startsWith("# ")) {
+      flushList(idx);
+      nodes.push(
+        <h2 key={idx} className="text-sm font-extrabold text-blue-400 mt-3 mb-1.5">
+          {formatInlineText(trimmed.replace(/^#\s+/, ""))}
+        </h2>
+      );
+      return;
+    }
+
+    // Bullet Lists (* or - or •)
+    if (trimmed.startsWith("* ") || trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+      const itemText = trimmed.replace(/^[\*\-•]\s+/, "");
+      listItems.push(itemText);
+      return;
+    }
+
+    // Numbered Lists (1. )
+    const numberedMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    if (numberedMatch) {
+      flushList(idx);
+      nodes.push(
+        <div key={idx} className="flex items-start gap-2 my-1 text-slate-200">
+          <span className="font-semibold text-blue-400 shrink-0 text-[11px]">{numberedMatch[1]}.</span>
+          <span className="flex-1">{formatInlineText(numberedMatch[2])}</span>
+        </div>
+      );
+      return;
+    }
+
+    // Regular Paragraph
+    flushList(idx);
+    nodes.push(
+      <p key={idx} className="my-1 leading-relaxed text-slate-200">
+        {formatInlineText(trimmed)}
+      </p>
+    );
+  });
+
+  flushList(lines.length);
+
+  return <div className="space-y-0.5">{nodes}</div>;
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -212,11 +370,15 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
             <div
               className={`p-3 rounded-xl max-w-[85%] leading-relaxed ${
                 m.role === "user"
-                  ? "bg-blue-600 text-white shadow-md"
+                  ? "bg-blue-600 text-white shadow-md whitespace-pre-wrap"
                   : "bg-slate-900/80 border border-slate-800 text-slate-200"
               }`}
             >
-              <div className="whitespace-pre-wrap">{m.content}</div>
+              {m.role === "user" ? (
+                <div>{m.content}</div>
+              ) : (
+                <RenderFormattedContent content={m.content} />
+              )}
             </div>
             {m.role === "user" && (
               <div className="w-6 h-6 rounded-md bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 mt-0.5">

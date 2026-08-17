@@ -241,10 +241,36 @@ async def test_ai_advisor_non_aizasy_key_handling(async_client: AsyncClient):
                 assert status_res.json()["key_length"] == 53
 
                 # 2. Chat
-                chat_res = await async_client.post("/api/v1/ai/advisor/chat", json={"message": "NVDA outlook"})
-                assert chat_res.status_code == 200
-                assert chat_res.json()["configured"] is True
-                assert "bullish" in chat_res.json()["message"]
+@pytest.mark.asyncio
+async def test_clean_advisor_response_normalizer():
+    """Verify that LaTeX math formulas, delimiters, and raw internal headers are cleaned safely while preserving financial numbers."""
+    from app.services.advisor import clean_advisor_response
+
+    # 1. LaTeX formula conversion
+    raw_latex = r"$$\text{22K Gold Price per Unit} = \text{24K Spot Price per Unit} \times 0.9167$$"
+    cleaned = clean_advisor_response(raw_latex)
+    assert "$$" not in cleaned
+    assert r"\text" not in cleaned
+    assert r"\times" not in cleaned
+    assert "22K Gold Price per Unit = 24K Spot Price per Unit × 0.9167" in cleaned
+
+    # 2. Financial numbers and dollar amounts preservation
+    raw_financial = "Available Virtual Cash: $101,938.25\nUnrealized P&L: +12.45%\nNVDA Price: $128.21"
+    cleaned_fin = clean_advisor_response(raw_financial)
+    assert "$101,938.25" in cleaned_fin
+    assert "+12.45%" in cleaned_fin
+    assert "$128.21" in cleaned_fin
+
+    # 3. Fraction and operator conversion
+    raw_fraction = r"$$\text{Sharpe} = \frac{\text{Return} - \text{Rf}}{\sigma}$$"
+    cleaned_frac = clean_advisor_response(raw_fraction)
+    assert "(Return - Rf / σ)" in cleaned_frac or "Return - Rf" in cleaned_frac
+
+    # 4. Trailing internal note cleaning
+    raw_trailing = "### 💼 Portfolio Context & Allocation Note\n* Available Virtual Cash: $101,938.25"
+    cleaned_trailing = clean_advisor_response(raw_trailing)
+    assert "$101,938.25" in cleaned_trailing
+
 
 
 

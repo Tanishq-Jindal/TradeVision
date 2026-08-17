@@ -285,6 +285,59 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
     return "⚠️ Gemini AI returned an empty response. Please try asking a specific question about a stock (e.g., NVDA, AAPL) or your portfolio."
 
 
+def clean_advisor_response(text: str) -> str:
+    r"""
+    Cleans and normalizes Gemini AI response text:
+    1. Converts raw LaTeX formulas and commands into clean, readable text.
+    2. Removes raw LaTeX delimiters ($$, $, \(, \)).
+    3. Normalizes excessive whitespace and formatting artifacts while preserving
+       all financial numbers, paragraphs, bullet points, dollar amounts, and Markdown.
+    """
+    if not text or not isinstance(text, str):
+        return ""
+
+    import re
+    cleaned = text
+
+    # 1. Replace common LaTeX commands
+    # \frac{A}{B} -> (A / B)
+    cleaned = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1 / \2)', cleaned)
+    # \text{...} or \mathbf{...} or \mathrm{...} or \mathit{...} or \textbf{...} -> ...
+    cleaned = re.sub(r'\\(?:text|mathbf|mathrm|mathit|textbf|textrm)\{([^{}]+)\}', r'\1', cleaned)
+    # LaTeX operators
+    cleaned = re.sub(r'\\times\b', '×', cleaned)
+    cleaned = re.sub(r'\\cdot\b', '·', cleaned)
+    cleaned = re.sub(r'\\approx\b', '≈', cleaned)
+    cleaned = re.sub(r'\\pm\b', '±', cleaned)
+    cleaned = re.sub(r'\\(?:ge|geq)\b', '≥', cleaned)
+    cleaned = re.sub(r'\\(?:le|leq)\b', '≤', cleaned)
+    cleaned = re.sub(r'\\neq\b', '≠', cleaned)
+    cleaned = re.sub(r'\\infty\b', '∞', cleaned)
+    cleaned = re.sub(r'\\quad\b', ' ', cleaned)
+    cleaned = re.sub(r'\\qquad\b', '  ', cleaned)
+
+    # 2. Strip block and inline LaTeX delimiters ($$ ... $$)
+    # Block math: $$ ... $$ -> ...
+    cleaned = re.sub(r'\$\$\s*(.*?)\s*\$\$', r'\1', cleaned, flags=re.DOTALL)
+    # Inline math: $ ... $ (excluding standard dollar currency figures like $100 or $10.50)
+    cleaned = re.sub(r'(?<![\w$])\$(?!\d)([^$\n]+)\$(?![\w$])', r'\1', cleaned)
+    # \( ... \) -> ...
+    cleaned = re.sub(r'\\\(\s*(.*?)\s*\\\)', r'\1', cleaned)
+    # \[ ... \] -> ...
+    cleaned = re.sub(r'\\\[\s*(.*?)\s*\\\]', r'\1', cleaned, flags=re.DOTALL)
+
+    # 3. Clean any remaining raw LaTeX braces
+    cleaned = re.sub(r'(?<=×)\s*\{([^}]+)\}', r' \1', cleaned)
+
+    # 4. Standardize unwanted duplicate raw internal portfolio headers
+    cleaned = re.sub(r'###\s*[💼\s]*Portfolio Context & Allocation Note\s*\n+', '### Account Snapshot\n', cleaned)
+
+    # 5. Normalize excessive blank lines (3+ newlines -> 2 newlines)
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
+
+    return cleaned
+
+
 async def get_advisor_chat_response(
     message: str,
     symbol: Optional[str] = None,
@@ -346,7 +399,7 @@ async def get_advisor_chat_response(
         try:
             portfolio = await get_user_portfolio_full(db, user.id)
             portfolio_context_lines.extend([
-                f"AUTHENTICATED USER PORTFOLIO CONTEXT (SOURCE OF TRUTH):",
+                f"BACKGROUND USER ACCOUNT DATA (Internal reference only - do not repeat headers verbatim):",
                 f"- Available Virtual Cash: ${portfolio.cash_balance:,.2f}",
                 f"- Total Portfolio Valuation: ${portfolio.total_portfolio_value:,.2f}",
                 f"- Total Invested Equity: ${portfolio.invested_value:,.2f}",
@@ -371,16 +424,18 @@ async def get_advisor_chat_response(
         + f"USER MESSAGE:\n\"{message}\"\n\n"
         + "INSTRUCTIONS:\n"
         + "1. Respond directly, concisely, and insightfully to the user's question.\n"
-        + "2. When discussing the user's balance or holdings, ALWAYS use the exact figures from the Portfolio Context above. NEVER invent fake numbers or accounts.\n"
-        + "3. When discussing stock tickers, use the live market data and ML/sentiment metrics provided above.\n"
-        + "4. Clearly distinguish educational/paper-trading analysis from verified financial advice.\n"
-        + "5. Format your output with clean GitHub markdown headers, bullet points, and bold text."
+        + "2. When discussing the user's balance or holdings, naturally reference figures from Account Data above (e.g. 'You have $101,938.25 in available virtual cash'). NEVER invent fake numbers.\n"
+        + "3. Do NOT append unsolicited 'Portfolio Context & Allocation Note' headers or portfolio dumps if the user is asking a general question (e.g. gold, concepts, general market questions). Only mention portfolio data when directly relevant or asked.\n"
+        + "4. Do NOT use raw LaTeX math delimiters ($$, \\text{}, \\times, \\frac{}). Write formulas and equations in clear, natural, readable plain text (e.g. '22K Gold Price = 24K Spot Price × 0.9167').\n"
+        + "5. Clearly distinguish educational/paper-trading analysis from verified financial advice.\n"
+        + "6. Format your output with clean GitHub markdown headers, bullet points, and bold text."
     )
 
     # 6. Call Google Gemini API
     try:
         response_text = await call_gemini_api(prompt, api_key)
-        return response_text, True
+        cleaned_text = clean_advisor_response(response_text)
+        return cleaned_text, True
     except httpx.HTTPStatusError as e:
         status_code = e.response.status_code
         logger.error(f"Gemini API HTTP {status_code} error: {e.response.text}")
