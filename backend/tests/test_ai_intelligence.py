@@ -141,7 +141,7 @@ async def test_ai_advisor_chat_with_gemini_api_integration(async_client: AsyncCl
 @pytest.mark.asyncio
 async def test_ai_advisor_status_endpoint(async_client: AsyncClient):
     """Verify /api/v1/ai/advisor/status correctly reflects configuration state without exposing secrets."""
-    from unittest.mock import patch
+    from unittest.mock import patch, AsyncMock
 
     # 1. Unconfigured state
     with patch("app.services.advisor.settings.GEMINI_API_KEY", ""):
@@ -149,15 +149,23 @@ async def test_ai_advisor_status_endpoint(async_client: AsyncClient):
         assert res.status_code == 200
         data = res.json()
         assert data["configured"] is False
+        assert data["key_present"] is False
+        assert data["google_api_status"] == "unconfigured"
         assert "model" in data
 
-    # 2. Configured state
-    with patch("app.services.advisor.settings.GEMINI_API_KEY", "valid-test-key"):
-        res = await async_client.get("/api/v1/ai/advisor/status")
-        assert res.status_code == 200
-        data = res.json()
-        assert data["configured"] is True
-        assert "valid-test-key" not in str(data)  # Crucial security guarantee: never leak keys
+    # 2. Configured state with valid key
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", "AIzaSyTestKey1234567890"):
+        with patch("app.services.advisor.get_available_gemini_models", new=AsyncMock(return_value=(["gemini-1.5-flash", "gemini-2.0-flash"], "ok_200"))):
+            res = await async_client.get("/api/v1/ai/advisor/status")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["configured"] is True
+            assert data["key_present"] is True
+            assert data["key_length"] == 23
+            assert data["key_preview"] == "AIza...*******************"
+            assert data["google_api_status"] == "ok_200"
+            assert "AIzaSyTestKey1234567890" not in str(data)  # Crucial security guarantee: never leak keys
+
 
 
 @pytest.mark.asyncio

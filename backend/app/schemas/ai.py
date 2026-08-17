@@ -57,7 +57,12 @@ class AdvisorChatResponse(BaseModel):
 
 class AIStatusResponse(BaseModel):
     configured: bool
+    key_present: bool
+    key_length: int
+    key_preview: str
     model: str
+    google_api_status: str
+    discovered_models: List[str] = Field(default_factory=list)
 
 
 class RiskMetricResponse(BaseModel):

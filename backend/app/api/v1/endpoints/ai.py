@@ -111,10 +111,15 @@ async def chat_advisor(
     description="Returns whether the Gemini API key is configured and active model name without exposing secrets.",
 )
 async def get_advisor_status() -> AIStatusResponse:
-    status_info = get_ai_service_status()
+    status_info = await get_ai_service_status()
     return AIStatusResponse(
         configured=status_info["configured"],
+        key_present=status_info["key_present"],
+        key_length=status_info["key_length"],
+        key_preview=status_info["key_preview"],
         model=status_info["model"],
+        google_api_status=status_info["google_api_status"],
+        discovered_models=status_info.get("discovered_models", []),
     )
 
 

@@ -16,18 +16,10 @@ from app.services.trading_engine import get_user_portfolio_full
 logger = logging.getLogger(__name__)
 
 
-def get_ai_service_status() -> dict:
-    """Returns safe diagnostic information about Gemini AI configuration without exposing secrets."""
-    api_key = (settings.GEMINI_API_KEY or "").strip()
-    return {
-        "configured": bool(api_key),
-        "model": settings.GEMINI_MODEL or "gemini-1.5-flash",
-    }
-
-
-async def get_available_gemini_models(api_key: str) -> list[str]:
+async def get_available_gemini_models(api_key: str) -> tuple[list[str], str]:
     """
     Queries Google Generative Language API for models supporting generateContent for this key.
+    Returns: (list_of_model_names, api_status_code_str)
     """
     clean_api_key = (api_key or "").strip().strip("'\"` \r\n\t")
     if clean_api_key.startswith("GEMINI_API_KEY="):
@@ -36,10 +28,10 @@ async def get_available_gemini_models(api_key: str) -> list[str]:
         clean_api_key = clean_api_key[len("Bearer "):].strip().strip("'\"` \r\n\t")
 
     if not clean_api_key:
-        return []
+        return [], "unconfigured"
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             res = await client.get(
                 f"https://generativelanguage.googleapis.com/v1beta/models?key={clean_api_key}",
                 headers={"x-goog-api-key": clean_api_key},
@@ -57,10 +49,49 @@ async def get_available_gemini_models(api_key: str) -> list[str]:
                         if name:
                             supported.append(name)
                 logger.info(f"Discovered {len(supported)} Gemini models supporting generateContent: {supported[:5]}")
-                return supported
+                return supported, "ok_200"
+            elif res.status_code == 401:
+                logger.error("Google Generative Language API rejected the API key with HTTP 401 Unauthorized")
+                return [], "invalid_key_401"
+            elif res.status_code == 403:
+                logger.error("Google Generative Language API returned HTTP 403 Forbidden")
+                return [], "forbidden_403"
+            elif res.status_code == 429:
+                logger.warning("Google Generative Language API returned HTTP 429 Too Many Requests")
+                return [], "rate_limit_429"
+            else:
+                return [], f"error_{res.status_code}"
+    except httpx.TimeoutException:
+        logger.warning("Timeout connecting to Google Generative Language API models endpoint")
+        return [], "timeout"
     except Exception as e:
-        logger.warning(f"Could not discover Gemini models dynamically: {str(e)}")
-    return []
+        logger.warning(f"Could not connect to Gemini models endpoint: {str(e)}")
+        return [], "unreachable"
+
+
+async def get_ai_service_status() -> dict:
+    """Returns safe diagnostic information about Gemini AI configuration without exposing secrets."""
+    clean_api_key = (settings.GEMINI_API_KEY or "").strip().strip("'\"` \r\n\t")
+    if clean_api_key.startswith("GEMINI_API_KEY="):
+        clean_api_key = clean_api_key[len("GEMINI_API_KEY="):].strip().strip("'\"` \r\n\t")
+    if clean_api_key.startswith("Bearer "):
+        clean_api_key = clean_api_key[len("Bearer "):].strip().strip("'\"` \r\n\t")
+
+    key_present = bool(clean_api_key)
+    key_length = len(clean_api_key)
+    key_preview = f"{clean_api_key[:4]}...{'*' * max(0, key_length - 4)}" if key_length >= 4 else "[not_set]"
+
+    discovered_models, api_status = await get_available_gemini_models(clean_api_key)
+
+    return {
+        "configured": key_present and api_status == "ok_200",
+        "key_present": key_present,
+        "key_length": key_length,
+        "key_preview": key_preview,
+        "model": settings.GEMINI_MODEL or "gemini-1.5-flash",
+        "google_api_status": api_status,
+        "discovered_models": discovered_models,
+    }
 
 
 async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None) -> str:
@@ -75,12 +106,32 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
     if clean_api_key.startswith("Bearer "):
         clean_api_key = clean_api_key[len("Bearer "):].strip().strip("'\"` \r\n\t")
 
+    if not clean_api_key:
+        raise httpx.HTTPStatusError(
+            "401 Unauthorized: GEMINI_API_KEY is not configured",
+            request=httpx.Request("POST", "https://generativelanguage.googleapis.com/v1beta/models"),
+            response=httpx.Response(401, text="API key not configured"),
+        )
+
     raw_model = (model_name or settings.GEMINI_MODEL or "gemini-1.5-flash").strip()
     if raw_model.startswith("models/"):
         raw_model = raw_model[len("models/"):].strip()
 
     # Discover models dynamically from API
-    discovered = await get_available_gemini_models(clean_api_key)
+    discovered, api_status = await get_available_gemini_models(clean_api_key)
+
+    if api_status == "invalid_key_401":
+        raise httpx.HTTPStatusError(
+            "401 Unauthorized: Google rejected the provided Gemini API key",
+            request=httpx.Request("GET", "https://generativelanguage.googleapis.com/v1beta/models"),
+            response=httpx.Response(401, text="API key not valid"),
+        )
+    elif api_status == "forbidden_403":
+        raise httpx.HTTPStatusError(
+            "403 Forbidden: Google Generative Language API is disabled or forbidden",
+            request=httpx.Request("GET", "https://generativelanguage.googleapis.com/v1beta/models"),
+            response=httpx.Response(403, text="Permission denied"),
+        )
 
     candidate_models = [raw_model]
     for m in discovered:
