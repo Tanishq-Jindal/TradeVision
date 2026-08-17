@@ -34,6 +34,22 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     HUGGINGFACE_API_KEY: str = ""
 
+    @field_validator("APP_NAME", mode="before")
+    @classmethod
+    def validate_app_name(cls, v: Union[str, Any]) -> str:
+        """Ensures APP_NAME is always non-empty and defaults safely to 'TradeVision'."""
+        if not v or not isinstance(v, str) or not v.strip():
+            return "TradeVision"
+        return v.strip()
+
+    @field_validator("APP_VERSION", mode="before")
+    @classmethod
+    def validate_app_version(cls, v: Union[str, Any]) -> str:
+        """Ensures APP_VERSION defaults safely to '1.0.0'."""
+        if not v or not isinstance(v, str) or not v.strip():
+            return "1.0.0"
+        return v.strip()
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def assemble_database_url(cls, v: Union[str, Any]) -> str:

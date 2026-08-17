@@ -67,3 +67,20 @@ def test_session_normalize_helper():
     assert _normalize_db_url("postgresql+psycopg2://user:pass@host/db") == "postgresql+asyncpg://user:pass@host/db"
     assert _normalize_db_url("postgresql+asyncpg://user:pass@host/db") == "postgresql+asyncpg://user:pass@host/db"
     assert _normalize_db_url("sqlite:///:memory:") == "sqlite+aiosqlite:///:memory:"
+
+
+def test_app_name_empty_fallback():
+    """Verify empty or whitespace APP_NAME safely defaults to TradeVision to prevent FastAPI OpenAPI AssertionError."""
+    from fastapi import FastAPI
+
+    empty_settings = Settings(APP_NAME="", APP_VERSION="")
+    assert empty_settings.APP_NAME == "TradeVision"
+    assert empty_settings.APP_VERSION == "1.0.0"
+
+    whitespace_settings = Settings(APP_NAME="   ")
+    assert whitespace_settings.APP_NAME == "TradeVision"
+
+    # Verify FastAPI initialization does not raise AssertionError: A title must be provided for OpenAPI
+    app = FastAPI(title=empty_settings.APP_NAME or "TradeVision")
+    assert app.title == "TradeVision"
+
