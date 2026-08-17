@@ -55,6 +55,11 @@ class AdvisorChatResponse(BaseModel):
     model: str = "gemini-1.5-flash"
 
 
+class AIStatusResponse(BaseModel):
+    configured: bool
+    model: str
+
+
 class RiskMetricResponse(BaseModel):
     symbol_or_portfolio: str
     annualized_volatility: float

@@ -229,7 +229,9 @@ async def test_database_persistence_with_separate_sessions(async_client: AsyncCl
     assert len(fresh_txns) == 1
     assert fresh_txns[0].type == "TRADE"
     assert float(fresh_txns[0].amount) == -2000.00
-    assert float(fresh_txns[0].balance_after) == 98000.00# 4. Fresh API request
+    assert float(fresh_txns[0].balance_after) == 98000.00
+
+    # 4. Fresh API request
     port_api = await async_client.get("/api/v1/portfolio", headers=headers)
     assert port_api.status_code == 200
     assert port_api.json()["cash_balance"] == 98000.00
@@ -238,3 +240,135 @@ async def test_database_persistence_with_separate_sessions(async_client: AsyncCl
     assert summary_api.status_code == 200
     assert summary_api.json()["cash_balance"] == 98000.00
 
+
+@pytest.mark.asyncio
+async def test_price_change_updates_total_portfolio_value_dynamically(async_client: AsyncClient, db_session: AsyncSession):
+    """
+    Step 11 Verification:
+    Proves that total portfolio value = cash + current position market value (NOT cash + cost basis).
+    1. BUY 10 shares @ $200 -> Cash = $98,000.
+    2. When stock price rises to $250:
+       - Position Market Value = 10 * $250 = $2,500
+       - Total Portfolio Value = $98,000 + $2,500 = $100,500
+       - Unrealized P&L = +$500 (+25.0% on position, +0.5% on portfolio)
+    """
+    from app.schemas.market import QuoteResponse
+
+    # 1. Register user
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "price_change_tester@example.com", "password": "Password123"},
+    )
+    assert reg.status_code == 201
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. BUY 10 shares of NVDA @ $200.00
+    buy_res = await async_client.post(
+        "/api/v1/trades/buy",
+        headers=headers,
+        json={"symbol": "NVDA", "quantity": 10.0, "price": 200.00},
+    )
+    assert buy_res.status_code == 201
+
+    # 3. Simulate market quote price rising to $250.00
+    mock_quote_250 = QuoteResponse(
+        symbol="NVDA",
+        c=250.00,
+        d=50.00,
+        dp=25.00,
+        h=255.00,
+        l=198.00,
+        o=200.00,
+        pc=200.00,
+        t=1700000000,
+        simulated=False,
+    )
+
+    with patch("app.services.trading_engine.get_quote", new=AsyncMock(return_value=mock_quote_250)):
+        # Check GET /api/v1/portfolio/summary
+        summary_res = await async_client.get("/api/v1/portfolio/summary", headers=headers)
+        assert summary_res.status_code == 200
+        s_data = summary_res.json()
+        assert s_data["cash_balance"] == 98000.00
+        assert s_data["invested_value"] == 2500.00  # Market value of positions
+        assert s_data["total_value"] == 100500.00   # Cash ($98k) + Market Value ($2.5k)
+        assert s_data["total_pnl"] == 500.00        # +$500 profit
+
+        # Check GET /api/v1/portfolio
+        port_res = await async_client.get("/api/v1/portfolio", headers=headers)
+        assert port_res.status_code == 200
+        p_data = port_res.json()
+        assert p_data["cash_balance"] == 98000.00
+        assert p_data["total_market_value"] == 2500.00
+        assert p_data["total_portfolio_value"] == 100500.00
+        assert p_data["invested_value"] == 2000.00  # Cost basis
+        assert p_data["unrealized_pnl"] == 500.00
+        assert p_data["unrealized_pnl_percent"] == 25.00
+
+
+@pytest.mark.asyncio
+async def test_complete_buy_and_partial_and_full_sell_lifecycle(async_client: AsyncClient, db_session: AsyncSession):
+    """
+    Step 10 Verification:
+    START: cash = 100000, position = 0
+    BUY: 10 shares @ 200 -> cash = 98000, pos = 10, total = 100000
+    SELL: 5 shares @ 200 -> cash = 99000, pos = 5, total = 100000
+    SELL: 5 shares @ 200 -> cash = 100000, pos = 0, total = 100000
+    """
+    from app.schemas.market import QuoteResponse
+
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "lifecycle_tester@example.com", "password": "Password123"},
+    )
+    assert reg.status_code == 201
+    user_id = reg.json()["user"]["id"]
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    mock_quote_200 = QuoteResponse(
+        symbol="AAPL",
+        c=200.00,
+        d=0.00,
+        dp=0.00,
+        h=205.00,
+        l=195.00,
+        o=200.00,
+        pc=200.00,
+        t=1700000000,
+        simulated=False,
+    )
+
+    with patch("app.services.trading_engine.get_quote", new=AsyncMock(return_value=mock_quote_200)):
+        # 1. BUY 10 @ 200
+        await async_client.post(
+            "/api/v1/trades/buy",
+            headers=headers,
+            json={"symbol": "AAPL", "quantity": 10.0, "price": 200.00},
+        )
+        s1 = (await async_client.get("/api/v1/portfolio/summary", headers=headers)).json()
+        assert s1["cash_balance"] == 98000.00
+        assert s1["total_value"] == 100000.00
+
+        # 2. SELL 5 @ 200
+        await async_client.post(
+            "/api/v1/trades/sell",
+            headers=headers,
+            json={"symbol": "AAPL", "quantity": 5.0, "price": 200.00},
+        )
+        s2 = (await async_client.get("/api/v1/portfolio/summary", headers=headers)).json()
+        assert s2["cash_balance"] == 99000.00
+        assert s2["total_value"] == 100000.00
+
+        # 3. SELL remaining 5 @ 200
+        await async_client.post(
+            "/api/v1/trades/sell",
+            headers=headers,
+            json={"symbol": "AAPL", "quantity": 5.0, "price": 200.00},
+        )
+        s3 = (await async_client.get("/api/v1/portfolio/summary", headers=headers)).json()
+        assert s3["cash_balance"] == 100000.00
+        assert s3["invested_value"] == 0.00
+        assert s3["total_value"] == 100000.00
+        assert s3["positions_count"] == 0

@@ -9,12 +9,13 @@ from app.models.user import User
 from app.schemas.ai import (
     AdvisorChatRequest,
     AdvisorChatResponse,
+    AIStatusResponse,
     PredictionResponse,
     RiskMetricResponse,
     SentimentResponse,
     SignalScanItem,
 )
-from app.services.advisor import get_advisor_chat_response, stream_advisor_chat
+from app.services.advisor import get_advisor_chat_response, get_ai_service_status, stream_advisor_chat
 from app.services.prediction import predict_price_direction
 from app.services.risk import calculate_portfolio_risk, calculate_symbol_risk
 from app.services.scanner import scan_market_signals
@@ -104,6 +105,20 @@ async def chat_advisor(
 
 
 @router.get(
+    "/advisor/status",
+    response_model=AIStatusResponse,
+    summary="Safe AI service diagnostic status",
+    description="Returns whether the Gemini API key is configured and active model name without exposing secrets.",
+)
+async def get_advisor_status() -> AIStatusResponse:
+    status_info = get_ai_service_status()
+    return AIStatusResponse(
+        configured=status_info["configured"],
+        model=status_info["model"],
+    )
+
+
+@router.get(
     "/advisor/stream",
     summary="Stream conversational AI financial advisor chat (SSE)",
     description="Streams multi-turn conversational financial advice powered by Google Gemini and live portfolio context.",
@@ -128,3 +143,4 @@ async def stream_advisor(
             "X-Accel-Buffering": "no",
         },
     )
+

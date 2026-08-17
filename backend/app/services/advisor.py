@@ -15,38 +15,79 @@ from app.services.trading_engine import get_user_portfolio_full
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+
+def get_ai_service_status() -> dict:
+    """Returns safe diagnostic information about Gemini AI configuration without exposing secrets."""
+    api_key = (settings.GEMINI_API_KEY or "").strip()
+    return {
+        "configured": bool(api_key),
+        "model": settings.GEMINI_MODEL or "gemini-1.5-flash",
+    }
 
 
-async def call_gemini_api(prompt: str, api_key: str) -> str:
+async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None) -> str:
     """
-    Direct asynchronous HTTP caller for Google Gemini generateContent API.
+    Direct asynchronous HTTP caller for Google Gemini generateContent REST API.
+    Supports automatic candidate fallback across official Gemini models if a specific model returns 404.
     """
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        res = await client.post(
-            f"{GEMINI_API_URL}?key={api_key}",
-            json={
-                "contents": [
-                    {
-                        "role": "user",
-                        "parts": [{"text": prompt}],
-                    }
-                ],
-                "generationConfig": {
-                    "temperature": 0.3,
-                    "maxOutputTokens": 1024,
-                },
-            },
-        )
-        res.raise_for_status()
-        data = res.json()
-        candidates = data.get("candidates", [])
-        if candidates and "content" in candidates[0]:
-            parts = candidates[0]["content"].get("parts", [])
-            if parts and "text" in parts[0]:
-                return parts[0]["text"]
+    raw_model = (model_name or settings.GEMINI_MODEL or "gemini-1.5-flash").strip()
+    if raw_model.startswith("models/"):
+        raw_model = raw_model[len("models/"):].strip()
 
-        return "Received empty response from Gemini AI. Please try again."
+    candidate_models = [raw_model]
+    for m in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro"]:
+        if m not in candidate_models:
+            candidate_models.append(m)
+
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.3,
+            "maxOutputTokens": 1024,
+        },
+    }
+
+    last_error: Optional[Exception] = None
+
+    async with httpx.AsyncClient(timeout=25.0) as client:
+        for candidate in candidate_models:
+            for api_version in ["v1beta", "v1"]:
+                url = f"https://generativelanguage.googleapis.com/{api_version}/models/{candidate}:generateContent?key={api_key}"
+                try:
+                    res = await client.post(
+                        url,
+                        json=payload,
+                        headers={"Content-Type": "application/json"},
+                    )
+                    if res.status_code == 404:
+                        logger.warning(f"Gemini model {candidate} on {api_version} returned 404. Trying next candidate...")
+                        continue
+                    res.raise_for_status()
+                    data = res.json()
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        parts = candidates[0]["content"].get("parts", [])
+                        if parts and "text" in parts[0]:
+                            return parts[0]["text"].strip()
+                    return "Received empty response from Gemini AI. Please try again."
+                except httpx.HTTPStatusError as e:
+                    last_error = e
+                    if e.response.status_code == 404:
+                        continue
+                    # For non-404 errors (400, 403, 429), re-raise immediately
+                    raise e
+                except Exception as e:
+                    last_error = e
+                    continue
+
+    if last_error:
+        raise last_error
+    return "Received empty response from Gemini AI. Please try again."
 
 
 async def get_advisor_chat_response(
@@ -147,6 +188,10 @@ async def get_advisor_chat_response(
         logger.error(f"Gemini API HTTP {status_code} error: {e.response.text}")
         if status_code == 400:
             return "⚠️ Invalid Gemini API Key or malformed request. Please check your GEMINI_API_KEY setting.", False
+        elif status_code == 403:
+            return "⚠️ Permission denied (HTTP 403). Please verify your GEMINI_API_KEY has Generative Language API permissions in Google AI Studio.", False
+        elif status_code == 404:
+            return "⚠️ Gemini model not found (HTTP 404). Please ensure the Generative Language API is enabled in your Google AI Studio account.", False
         elif status_code == 429:
             return "⚠️ Gemini API rate limit reached. Please wait a moment and try again.", False
         return f"⚠️ Gemini API service returned status {status_code}. Please verify your API key.", False

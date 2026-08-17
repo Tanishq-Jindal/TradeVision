@@ -32,7 +32,28 @@ class Settings(BaseSettings):
     # External APIs (Optional for early sprints)
     FINNHUB_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
     HUGGINGFACE_API_KEY: str = ""
+
+    @field_validator("GEMINI_API_KEY", mode="before")
+    @classmethod
+    def assemble_gemini_api_key(cls, v: Union[str, Any]) -> str:
+        """Normalizes GEMINI_API_KEY, stripping surrounding quotes, whitespace, and disabled tokens."""
+        if not v or not isinstance(v, str):
+            return ""
+        k = v.strip()
+        if (k.startswith('"') and k.endswith('"')) or (k.startswith("'") and k.endswith("'")):
+            k = k[1:-1].strip()
+        if k.lower() in ("none", "null", "disabled", "false", "off", "undefined", ""):
+            return ""
+        return k
+
+    @field_validator("GEMINI_MODEL", mode="before")
+    @classmethod
+    def assemble_gemini_model(cls, v: Union[str, Any]) -> str:
+        if not v or not isinstance(v, str) or not v.strip():
+            return "gemini-1.5-flash"
+        return v.strip()
 
     @field_validator("APP_NAME", mode="before")
     @classmethod

@@ -137,3 +137,48 @@ async def test_ai_advisor_chat_with_gemini_api_integration(async_client: AsyncCl
             assert "NVDA" in data["message"]
             assert "100,000.00" in data["message"]
 
+
+@pytest.mark.asyncio
+async def test_ai_advisor_status_endpoint(async_client: AsyncClient):
+    """Verify /api/v1/ai/advisor/status correctly reflects configuration state without exposing secrets."""
+    from unittest.mock import patch
+
+    # 1. Unconfigured state
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", ""):
+        res = await async_client.get("/api/v1/ai/advisor/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["configured"] is False
+        assert "model" in data
+
+    # 2. Configured state
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", "valid-test-key"):
+        res = await async_client.get("/api/v1/ai/advisor/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["configured"] is True
+        assert "valid-test-key" not in str(data)  # Crucial security guarantee: never leak keys
+
+
+@pytest.mark.asyncio
+async def test_ai_advisor_api_error_handling(async_client: AsyncClient):
+    """Verify Gemini API error states (400, 429, timeout) produce structured safe error messages."""
+    import httpx
+    from unittest.mock import patch, AsyncMock
+
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", "test-key"):
+        # 1. Rate limit (429)
+        mock_429 = httpx.HTTPStatusError("429 Too Many Requests", request=AsyncMock(), response=AsyncMock(status_code=429, text="Quota exceeded"))
+        with patch("app.services.advisor.call_gemini_api", side_effect=mock_429):
+            res = await async_client.post("/api/v1/ai/advisor/chat", json={"message": "hello"})
+            assert res.status_code == 200
+            assert "rate limit" in res.json()["message"].lower()
+
+        # 2. Invalid Key (400)
+        mock_400 = httpx.HTTPStatusError("400 Bad Request", request=AsyncMock(), response=AsyncMock(status_code=400, text="API key not valid"))
+        with patch("app.services.advisor.call_gemini_api", side_effect=mock_400):
+            res = await async_client.post("/api/v1/ai/advisor/chat", json={"message": "hello"})
+            assert res.status_code == 200
+            assert "invalid gemini api key" in res.json()["message"].lower()
+
+
