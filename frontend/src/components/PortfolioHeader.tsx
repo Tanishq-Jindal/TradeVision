@@ -10,13 +10,13 @@ interface PortfolioHeaderProps {
 }
 
 export const PortfolioHeader: React.FC<PortfolioHeaderProps> = ({ summary, onTradeClick }) => {
-  const totalVal = summary?.total_value || 100000.00;
-  const cashBal = summary?.cash_balance || 100000.00;
-  const investedVal = summary?.invested_value || 0.00;
-  const totalPnl = summary?.total_pnl || 0.00;
-  const totalPnlPct = summary?.total_pnl_pct || 0.00;
-  const dailyPnl = summary?.daily_pnl || 0.00;
-  const dailyPnlPct = summary?.daily_pnl_pct || 0.00;
+  const totalVal = summary?.total_value ?? 100000.00;
+  const cashBal = summary?.cash_balance ?? 100000.00;
+  const investedVal = summary?.invested_value ?? 0.00;
+  const totalPnl = summary?.total_pnl ?? 0.00;
+  const totalPnlPct = summary?.total_pnl_pct ?? 0.00;
+  const dailyPnl = summary?.daily_pnl ?? 0.00;
+  const dailyPnlPct = summary?.daily_pnl_pct ?? 0.00;
 
   const isTotalProfit = totalPnl >= 0;
   const isDailyProfit = dailyPnl >= 0;

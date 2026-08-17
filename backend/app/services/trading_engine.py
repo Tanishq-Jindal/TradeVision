@@ -67,7 +67,9 @@ async def execute_buy(db: AsyncSession, user_id: int, order: TradeOrderRequest) 
         )
 
     # 3. Deduct cash balance
-    portfolio.cash_balance = round(cash_available - total_value, 2)
+    new_cash = round(cash_available - total_value, 2)
+    portfolio.cash_balance = new_cash
+    db.add(portfolio)
 
     # 4. Update or create Position
     stmt = select(Position).where(
@@ -114,13 +116,15 @@ async def execute_buy(db: AsyncSession, user_id: int, order: TradeOrderRequest) 
         portfolio_id=portfolio.id,
         type="TRADE",
         amount=-total_value,
-        balance_after=float(portfolio.cash_balance),
+        balance_after=new_cash,
         related_trade_id=trade.id,
     )
     db.add(txn)
 
     await db.commit()
-    logger.info(f"BUY trade executed: user={user_id} {order.quantity} {order.symbol} @ ${execution_price:,.2f}")
+    await db.refresh(portfolio)
+    await db.refresh(trade)
+    logger.info(f"BUY trade executed: user={user_id} {order.quantity} {order.symbol} @ ${execution_price:,.2f}, balance_after=${new_cash:,.2f}")
     return trade
 
 
@@ -168,7 +172,9 @@ async def execute_sell(db: AsyncSession, user_id: int, order: TradeOrderRequest)
         position.updated_at = datetime.now(timezone.utc)
 
     # 4. Increment cash balance
-    portfolio.cash_balance = round(float(portfolio.cash_balance) + total_value, 2)
+    new_cash = round(float(portfolio.cash_balance) + total_value, 2)
+    portfolio.cash_balance = new_cash
+    db.add(portfolio)
 
     # 5. Record Trade
     trade = Trade(
@@ -187,13 +193,15 @@ async def execute_sell(db: AsyncSession, user_id: int, order: TradeOrderRequest)
         portfolio_id=portfolio.id,
         type="TRADE",
         amount=total_value,
-        balance_after=float(portfolio.cash_balance),
+        balance_after=new_cash,
         related_trade_id=trade.id,
     )
     db.add(txn)
 
     await db.commit()
-    logger.info(f"SELL trade executed: user={user_id} {order.quantity} {order.symbol} @ ${execution_price:,.2f}")
+    await db.refresh(portfolio)
+    await db.refresh(trade)
+    logger.info(f"SELL trade executed: user={user_id} {order.quantity} {order.symbol} @ ${execution_price:,.2f}, balance_after=${new_cash:,.2f}")
     return trade
 
 

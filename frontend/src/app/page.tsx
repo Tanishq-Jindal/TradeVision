@@ -416,7 +416,7 @@ export default function HomePage() {
           onClose={() => setIsOrderModalOpen(false)}
           symbol={selectedSymbol}
           quote={quote}
-          cashBalance={portfolioSummary?.cash_balance || 100000.00}
+          cashBalance={portfolioSummary?.cash_balance ?? 100000.00}
           existingPosition={currentHeldPosition}
           onTradeSuccess={() => {
             fetchUserData();

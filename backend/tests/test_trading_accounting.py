@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from unittest.mock import patch, AsyncMock
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.portfolio import Portfolio
 from app.models.position import Position
 from app.models.trade import Trade
@@ -163,3 +164,77 @@ async def test_sell_more_shares_than_owned_rejected(async_client: AsyncClient):
     p = await async_client.get("/api/v1/portfolio", headers=headers)
     assert p.json()["cash_balance"] == 99500.00
     assert p.json()["positions"][0]["quantity"] == 5.0
+
+
+@pytest.mark.asyncio
+async def test_database_persistence_with_separate_sessions(async_client: AsyncClient, db_session: AsyncSession):
+    """
+    Directly proves database-level persistence across independent sessions:
+    1. Starts with $100,000.00.
+    2. Executes BUY 10 shares @ $200 ($2,000).
+    3. Uses an isolated, fresh database AsyncSession (db_session).
+    4. Asserts that the database row for cash_balance is exactly 98000.00.
+    5. Asserts that position, trade, and transaction records exist in the database.
+    6. Calls GET /api/v1/portfolio and GET /api/v1/portfolio/summary to verify API matches.
+    """
+    # 1. Register user
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "fresh_session_tester@example.com", "password": "Password123"},
+    )
+    assert reg.status_code == 201
+    user_id = reg.json()["user"]["id"]
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. BUY 10 shares of NVDA @ $200.00
+    buy_res = await async_client.post(
+        "/api/v1/trades/buy",
+        headers=headers,
+        json={"symbol": "NVDA", "quantity": 10.0, "price": 200.00},
+    )
+    assert buy_res.status_code == 201
+
+    # 3. Query using a completely independent database session
+    # Check Portfolio
+    p_stmt = select(Portfolio).where(Portfolio.user_id == user_id)
+    p_res = await db_session.execute(p_stmt)
+    fresh_portfolio = p_res.scalar_one()
+    assert float(fresh_portfolio.cash_balance) == 98000.00
+
+    # Check Position
+    pos_stmt = select(Position).where(Position.portfolio_id == fresh_portfolio.id)
+    pos_res = await db_session.execute(pos_stmt)
+    fresh_pos = pos_res.scalars().all()
+    assert len(fresh_pos) == 1
+    assert fresh_pos[0].symbol == "NVDA"
+    assert float(fresh_pos[0].quantity) == 10.0
+    assert float(fresh_pos[0].avg_entry_price) == 200.00
+
+    # Check Trade record
+    t_stmt = select(Trade).where(Trade.portfolio_id == fresh_portfolio.id)
+    t_res = await db_session.execute(t_stmt)
+    fresh_trades = t_res.scalars().all()
+    assert len(fresh_trades) == 1
+    assert fresh_trades[0].symbol == "NVDA"
+    assert fresh_trades[0].side == "BUY"
+    assert float(fresh_trades[0].quantity) == 10.0
+    assert float(fresh_trades[0].price) == 200.00
+    assert float(fresh_trades[0].total_value) == 2000.00
+
+    # Check Transaction record
+    txn_stmt = select(Transaction).where(Transaction.portfolio_id == fresh_portfolio.id)
+    txn_res = await db_session.execute(txn_stmt)
+    fresh_txns = txn_res.scalars().all()
+    assert len(fresh_txns) == 1
+    assert fresh_txns[0].type == "TRADE"
+    assert float(fresh_txns[0].amount) == -2000.00
+    assert float(fresh_txns[0].balance_after) == 98000.00# 4. Fresh API request
+    port_api = await async_client.get("/api/v1/portfolio", headers=headers)
+    assert port_api.status_code == 200
+    assert port_api.json()["cash_balance"] == 98000.00
+
+    summary_api = await async_client.get("/api/v1/portfolio/summary", headers=headers)
+    assert summary_api.status_code == 200
+    assert summary_api.json()["cash_balance"] == 98000.00
+
