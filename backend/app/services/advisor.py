@@ -30,6 +30,12 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
     Direct asynchronous HTTP caller for Google Gemini generateContent REST API.
     Supports automatic candidate fallback across official Gemini models if a specific model returns 404.
     """
+    clean_api_key = (api_key or "").strip().strip("'\"` \r\n\t")
+    if clean_api_key.startswith("GEMINI_API_KEY="):
+        clean_api_key = clean_api_key[len("GEMINI_API_KEY="):].strip().strip("'\"` \r\n\t")
+    if clean_api_key.startswith("Bearer "):
+        clean_api_key = clean_api_key[len("Bearer "):].strip().strip("'\"` \r\n\t")
+
     raw_model = (model_name or settings.GEMINI_MODEL or "gemini-1.5-flash").strip()
     if raw_model.startswith("models/"):
         raw_model = raw_model[len("models/"):].strip()
@@ -57,14 +63,14 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
     async with httpx.AsyncClient(timeout=30.0) as client:
         for candidate in candidate_models:
             for api_version in ["v1beta", "v1"]:
-                url = f"https://generativelanguage.googleapis.com/{api_version}/models/{candidate}:generateContent?key={api_key}"
+                url = f"https://generativelanguage.googleapis.com/{api_version}/models/{candidate}:generateContent?key={clean_api_key}"
                 try:
                     res = await client.post(
                         url,
                         json=payload,
                         headers={
                             "Content-Type": "application/json",
-                            "x-goog-api-key": api_key,
+                            "x-goog-api-key": clean_api_key,
                         },
                     )
                     if res.status_code == 404:
@@ -211,8 +217,8 @@ async def get_advisor_chat_response(
     except httpx.HTTPStatusError as e:
         status_code = e.response.status_code
         logger.error(f"Gemini API HTTP {status_code} error: {e.response.text}")
-        if status_code == 400:
-            return "⚠️ Invalid Gemini API Key or malformed request. Please check your GEMINI_API_KEY setting.", False
+        if status_code in (400, 401):
+            return "⚠️ Invalid Gemini API Key (HTTP 401 Unauthorized). Please check your GEMINI_API_KEY setting in Render and ensure the full key (starting with 'AIzaSy...') is pasted without quotes.", False
         elif status_code == 403:
             return "⚠️ Permission denied (HTTP 403). Please verify your GEMINI_API_KEY has Generative Language API permissions in Google AI Studio.", False
         elif status_code == 404:

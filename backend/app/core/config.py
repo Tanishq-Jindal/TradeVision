@@ -38,12 +38,14 @@ class Settings(BaseSettings):
     @field_validator("GEMINI_API_KEY", mode="before")
     @classmethod
     def assemble_gemini_api_key(cls, v: Union[str, Any]) -> str:
-        """Normalizes GEMINI_API_KEY, stripping surrounding quotes, whitespace, and disabled tokens."""
+        """Normalizes GEMINI_API_KEY, stripping surrounding quotes, whitespace, variable prefixes, and disabled tokens."""
         if not v or not isinstance(v, str):
             return ""
-        k = v.strip()
-        if (k.startswith('"') and k.endswith('"')) or (k.startswith("'") and k.endswith("'")):
-            k = k[1:-1].strip()
+        k = v.strip().strip("'\"` \r\n\t")
+        if k.startswith("GEMINI_API_KEY="):
+            k = k[len("GEMINI_API_KEY="):].strip().strip("'\"` \r\n\t")
+        if k.startswith("Bearer "):
+            k = k[len("Bearer "):].strip().strip("'\"` \r\n\t")
         if k.lower() in ("none", "null", "disabled", "false", "off", "undefined", ""):
             return ""
         return k
