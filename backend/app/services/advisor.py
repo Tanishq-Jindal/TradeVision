@@ -69,12 +69,34 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
                         continue
                     res.raise_for_status()
                     data = res.json()
+
+                    # Extract generated text from candidates
                     candidates = data.get("candidates", [])
-                    if candidates and "content" in candidates[0]:
-                        parts = candidates[0]["content"].get("parts", [])
-                        if parts and "text" in parts[0]:
-                            return parts[0]["text"].strip()
-                    return "Received empty response from Gemini AI. Please try again."
+                    if candidates:
+                        for cand in candidates:
+                            content = cand.get("content") or {}
+                            parts = content.get("parts", [])
+                            text_chunks = [
+                                p.get("text", "") for p in parts
+                                if isinstance(p, dict) and p.get("text")
+                            ]
+                            cand_text = "".join(text_chunks).strip()
+                            if cand_text:
+                                logger.info(f"Successfully received response from Gemini ({candidate} via {api_version})")
+                                return cand_text
+
+                    # Check for direct text fields
+                    if "text" in data and str(data["text"]).strip():
+                        return str(data["text"]).strip()
+
+                    # Check for prompt safety blocks
+                    feedback = data.get("promptFeedback", {})
+                    if feedback.get("blockReason"):
+                        logger.warning(f"Gemini prompt blocked: {feedback.get('blockReason')}")
+                        return f"⚠️ Response blocked by safety policy ({feedback.get('blockReason')}). Please try rephrasing your message."
+
+                    logger.warning(f"Gemini model {candidate} on {api_version} returned 200 with no text. Trying next candidate...")
+                    continue
                 except httpx.HTTPStatusError as e:
                     last_error = e
                     if e.response.status_code == 404:
@@ -87,7 +109,7 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
 
     if last_error:
         raise last_error
-    return "Received empty response from Gemini AI. Please try again."
+    return "Received empty response from Gemini AI. Please try asking a specific stock or portfolio question."
 
 
 async def get_advisor_chat_response(
