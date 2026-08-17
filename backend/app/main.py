@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestIDMiddleware, setup_logging
-from app.db.session import async_session_factory
+from app.db.session import async_session_factory, engine
+from app.models import Base
 from app.schemas.health import HealthResponse
 from app.services.auth import seed_demo_user
 from app.services.health import get_system_health
@@ -18,6 +19,14 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Setup structured JSON logging
     setup_logging(settings.LOG_LEVEL)
+
+    # Automatically initialize database tables if they do not exist
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables initialized successfully.")
+    except Exception as e:
+        logger.warning(f"Database table initialization notice: {str(e)}")
 
     # Idempotently seed demo user on startup
     try:
