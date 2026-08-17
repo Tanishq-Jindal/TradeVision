@@ -68,3 +68,30 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_current_user_optional(
+    authorization: Optional[str] = Header(None),
+    access_token: Optional[str] = Cookie(None),
+    db: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    """
+    Safely retrieves the authenticated user if token is present, else returns None without raising.
+    """
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+    elif access_token:
+        token = access_token
+
+    if not token:
+        return None
+
+    try:
+        payload = decode_access_token(token)
+        user_id_str = payload.get("sub")
+        if user_id_str:
+            return await get_user_by_id(db, int(user_id_str))
+    except Exception:
+        return None
+    return None

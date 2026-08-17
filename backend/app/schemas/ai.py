@@ -48,6 +48,13 @@ class AdvisorChatRequest(BaseModel):
     symbol: Optional[str] = None
 
 
+class AdvisorChatResponse(BaseModel):
+    message: str
+    symbol: Optional[str] = None
+    configured: bool = True
+    model: str = "gemini-1.5-flash"
+
+
 class RiskMetricResponse(BaseModel):
     symbol_or_portfolio: str
     annualized_volatility: float

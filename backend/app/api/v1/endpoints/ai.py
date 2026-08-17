@@ -1,19 +1,20 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.ai import (
     AdvisorChatRequest,
+    AdvisorChatResponse,
     PredictionResponse,
     RiskMetricResponse,
     SentimentResponse,
     SignalScanItem,
 )
-from app.services.advisor import stream_advisor_chat
+from app.services.advisor import get_advisor_chat_response, stream_advisor_chat
 from app.services.prediction import predict_price_direction
 from app.services.risk import calculate_portfolio_risk, calculate_symbol_risk
 from app.services.scanner import scan_market_signals
@@ -77,17 +78,49 @@ async def get_signals(
     return await scan_market_signals(top_n=limit)
 
 
+@router.post(
+    "/advisor/chat",
+    response_model=AdvisorChatResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Send a message to conversational AI advisor",
+    description="Sends query to real Google Gemini AI model augmented with user portfolio data and live stock metrics.",
+)
+async def chat_advisor(
+    request: AdvisorChatRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+) -> AdvisorChatResponse:
+    response_text, is_configured = await get_advisor_chat_response(
+        message=request.message,
+        symbol=request.symbol,
+        user=current_user,
+        db=db,
+    )
+    return AdvisorChatResponse(
+        message=response_text,
+        symbol=request.symbol,
+        configured=is_configured,
+    )
+
+
 @router.get(
     "/advisor/stream",
     summary="Stream conversational AI financial advisor chat (SSE)",
-    description="Streams multi-turn conversational financial advice with tool-calling synthesis.",
+    description="Streams multi-turn conversational financial advice powered by Google Gemini and live portfolio context.",
 )
 async def stream_advisor(
     message: str = Query(..., description="User query or strategy question"),
     symbol: Optional[str] = Query(None, description="Optional focus stock ticker"),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
 ):
     return StreamingResponse(
-        stream_advisor_chat(message, symbol),
+        stream_advisor_chat(
+            message=message,
+            symbol=symbol,
+            user=current_user,
+            db=db,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

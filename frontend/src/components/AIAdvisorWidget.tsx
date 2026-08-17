@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Bot, User, Send, Sparkles, Loader2, ArrowRight } from "lucide-react";
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, getStoredToken } from "@/lib/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -17,7 +17,7 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: `Hello! I'm your TradeVision Quantitative Advisor. I synthesize real-time ML directional probabilities, technical indicators, news sentiment, and risk analytics. Ask me anything about **${symbol}** or your overall portfolio strategy.`,
+      content: `Hello! I'm your TradeVision Quantitative Advisor. I synthesize real-time ML directional probabilities, technical indicators, news sentiment, and your real portfolio context. Ask me anything about **${symbol}** or your overall portfolio strategy.`,
     },
   ]);
   const [input, setInput] = useState("");
@@ -44,7 +44,18 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
         userMsg
       )}&symbol=${encodeURIComponent(symbol)}`;
 
-      const response = await fetch(url, { credentials: "include" });
+      const token = getStoredToken();
+      const headers: Record<string, string> = {
+        Accept: "text/event-stream",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url, {
+        credentials: "include",
+        headers,
+      });
       if (!response.body) throw new Error("No response body");
 
       const reader = response.body.getReader();

@@ -70,3 +70,70 @@ async def test_signals_active_scanner(async_client: AsyncClient):
         assert 0.0 <= s["composite_score"] <= 100.0
         assert s["signal_type"] in ["STRONG_BUY", "BUY", "NEUTRAL", "SELL", "STRONG_SELL"]
         assert len(s["key_drivers"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_ai_advisor_chat_unconfigured_produces_clear_error(async_client: AsyncClient):
+    """Verify missing GEMINI_API_KEY produces an explicit configuration error instead of fake responses."""
+    from unittest.mock import patch
+
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", ""):
+        res = await async_client.post(
+            "/api/v1/ai/advisor/chat",
+            json={"message": "What is my current portfolio valuation?", "symbol": "NVDA"},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["configured"] is False
+        assert "AI service is not configured" in data["message"]
+        assert "GEMINI_API_KEY" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_ai_advisor_chat_with_gemini_api_integration(async_client: AsyncClient):
+    """Verify AI advisor passes user query and real portfolio context to Google Gemini."""
+    from unittest.mock import patch, AsyncMock
+    import httpx
+
+    # Mock Gemini HTTP response
+    mock_gemini_response = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": "Based on your real available cash of $100,000.00 and NVDA price metrics, NVDA exhibits a constructive bullish bias."
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    mock_resp = AsyncMock()
+    mock_resp.status_code = 200
+    mock_resp.json = lambda: mock_gemini_response
+    mock_resp.raise_for_status = lambda: None
+
+    # Authenticate user first
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "ai_trader@example.com", "password": "Password123"},
+    )
+    assert reg.status_code == 201
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", "fake-test-key-123"):
+        with patch("app.services.advisor.call_gemini_api", new=AsyncMock(return_value="Based on your real available cash of $100,000.00 and NVDA price metrics, NVDA exhibits a constructive bullish bias.")):
+            res = await async_client.post(
+                "/api/v1/ai/advisor/chat",
+                headers=headers,
+                json={"message": "Analyze NVDA for my portfolio", "symbol": "NVDA"},
+            )
+            assert res.status_code == 200
+            data = res.json()
+            assert data["configured"] is True
+            assert "NVDA" in data["message"]
+            assert "100,000.00" in data["message"]
+
