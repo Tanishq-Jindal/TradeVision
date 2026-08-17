@@ -27,6 +27,8 @@ import {
   AutopilotStatusResponse,
   AutopilotConfig,
   CorrelationNetworkResponse,
+} from "@/types";
+
 const TOKEN_KEY = "tradevision_access_token";
 
 export function getStoredToken(): string | null {

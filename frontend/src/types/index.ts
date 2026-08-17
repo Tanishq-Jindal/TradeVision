@@ -1,5 +1,5 @@
 export interface ServiceHealth {
-  status: "ok" | "unhealthy";
+  status: "ok" | "unhealthy" | "disabled" | "not_configured" | string;
   latency_ms?: number;
   error?: string | null;
 }
