@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # External APIs (Optional for early sprints)
     FINNHUB_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     HUGGINGFACE_API_KEY: str = ""
 
     @field_validator("GEMINI_API_KEY", mode="before")
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_gemini_model(cls, v: Union[str, Any]) -> str:
         if not v or not isinstance(v, str) or not v.strip():
-            return "gemini-1.5-flash"
+            return "gemini-2.5-flash"
         return v.strip()
 
     @field_validator("APP_NAME", mode="before")

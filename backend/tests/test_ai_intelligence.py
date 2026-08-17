@@ -219,4 +219,33 @@ async def test_ai_advisor_stream_endpoint(async_client: AsyncClient):
             assert "event: done" in content
 
 
+@pytest.mark.asyncio
+async def test_ai_advisor_non_aizasy_key_handling(async_client: AsyncClient):
+    """Verify that credentials not starting with AIzaSy (e.g. 53-char AQ.A... keys) are valid and not rejected."""
+    from unittest.mock import patch, AsyncMock
+    from app.services.advisor import get_key_fingerprint
+
+    sample_key = "AQ.ABcdEf1234567890-XYZ.Special_53_Char_Gemini_Key_12"
+    fp, length, preview = get_key_fingerprint(sample_key)
+    assert length == 53
+    assert preview.startswith("AQ.A...")
+    assert len(fp) == 12
+
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", sample_key):
+        with patch("app.services.advisor.get_available_gemini_models", new=AsyncMock(return_value=(["gemini-2.5-flash", "gemini-flash-latest"], "ok_200"))):
+            with patch("app.services.advisor.call_gemini_api", new=AsyncMock(return_value="NVDA demonstrates bullish momentum.")):
+                # 1. Status
+                status_res = await async_client.get("/api/v1/ai/advisor/status")
+                assert status_res.status_code == 200
+                assert status_res.json()["configured"] is True
+                assert status_res.json()["key_length"] == 53
+
+                # 2. Chat
+                chat_res = await async_client.post("/api/v1/ai/advisor/chat", json={"message": "NVDA outlook"})
+                assert chat_res.status_code == 200
+                assert chat_res.json()["configured"] is True
+                assert "bullish" in chat_res.json()["message"]
+
+
+
 
