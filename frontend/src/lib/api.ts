@@ -27,23 +27,62 @@ import {
   AutopilotStatusResponse,
   AutopilotConfig,
   CorrelationNetworkResponse,
-} from "@/types";
+const TOKEN_KEY = "tradevision_access_token";
+
+export function getStoredToken(): string | null {
+  if (typeof window !== "undefined") {
+    try {
+      return localStorage.getItem(TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function setStoredToken(token: string | null): void {
+  if (typeof window !== "undefined") {
+    try {
+      if (token) {
+        localStorage.setItem(TOKEN_KEY, token);
+      } else {
+        localStorage.removeItem(TOKEN_KEY);
+      }
+    } catch {
+      // Ignore localStorage errors (e.g. private browsing quota)
+    }
+  }
+}
 
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
     const custom = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (custom) {
-      if (window.location.hostname === "127.0.0.1" && custom.includes("localhost")) {
-        return custom.replace("localhost", "127.0.0.1");
+    if (custom && custom.trim() && !custom.includes("<") && !custom.includes(">")) {
+      let url = custom.trim().replace(/\/+$/, "");
+      if (window.location.hostname === "127.0.0.1" && url.includes("localhost")) {
+        url = url.replace("localhost", "127.0.0.1");
       }
-      if (window.location.hostname === "localhost" && custom.includes("127.0.0.1")) {
-        return custom.replace("127.0.0.1", "localhost");
+      if (window.location.hostname === "localhost" && url.includes("127.0.0.1")) {
+        url = url.replace("127.0.0.1", "localhost");
       }
-      return custom;
+      // Guarantee /api/v1 suffix if omitted
+      if (!url.endsWith("/api/v1")) {
+        url = `${url}/api/v1`;
+      }
+      return url;
     }
-    return `http://${window.location.hostname || "localhost"}:8000/api/v1`;
+    // If running in local dev on localhost or 127.0.0.1
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return `http://${window.location.hostname}:8000/api/v1`;
+    }
+    // If deployed on cloud/Vercel and NEXT_PUBLIC_API_BASE_URL was omitted, fallback to origin /api/v1
+    return `${window.location.origin}/api/v1`;
   }
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+  let fallback = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1").trim().replace(/\/+$/, "");
+  if (!fallback.endsWith("/api/v1")) {
+    fallback = `${fallback}/api/v1`;
+  }
+  return fallback;
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -72,6 +111,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     "Content-Type": "application/json",
     Accept: "application/json",
   };
+
+  const token = getStoredToken();
+  if (token) {
+    defaultHeaders["Authorization"] = `Bearer ${token}`;
+  }
 
   try {
     const response = await fetch(url, {
@@ -131,17 +175,25 @@ export const api = {
 
   // Auth
   register: async (input: RegisterInput): Promise<AuthResponse> => {
-    return await request<AuthResponse>("/auth/register", {
+    const res = await request<AuthResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(input),
     });
+    if (res.access_token) {
+      setStoredToken(res.access_token);
+    }
+    return res;
   },
 
   login: async (input: LoginInput): Promise<AuthResponse> => {
-    return await request<AuthResponse>("/auth/login", {
+    const res = await request<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(input),
     });
+    if (res.access_token) {
+      setStoredToken(res.access_token);
+    }
+    return res;
   },
 
   getMe: async (): Promise<User> => {
@@ -151,9 +203,13 @@ export const api = {
   },
 
   logout: async (): Promise<{ message: string }> => {
-    return await request<{ message: string }>("/auth/logout", {
-      method: "POST",
-    });
+    try {
+      return await request<{ message: string }>("/auth/logout", {
+        method: "POST",
+      });
+    } finally {
+      setStoredToken(null);
+    }
   },
 
   // Market Data

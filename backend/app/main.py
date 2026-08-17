@@ -47,6 +47,7 @@ app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https?://.*\.vercel\.app$|^https?://.*\.onrender\.com$|^https?://localhost:\d+$|^https?://127\.0\.0\.1:\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,3 +71,8 @@ async def root_health_check() -> HealthResponse:
 
 # Mount API v1 Router
 app.include_router(api_v1_router)
+
+# Mount root /auth fallback for client convenience
+from app.api.v1.endpoints import auth as auth_endpoints
+app.include_router(auth_endpoints.router, prefix="/auth", include_in_schema=False)
+

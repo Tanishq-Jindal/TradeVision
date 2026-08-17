@@ -33,7 +33,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
         expires=cookie_max_age,
         httponly=True,
         secure=is_production,
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         path="/",
     )
 
@@ -48,7 +48,7 @@ def clear_auth_cookie(response: Response) -> None:
         path="/",
         httponly=True,
         secure=is_production,
-        samesite="lax",
+        samesite="none" if is_production else "lax",
     )
 
 
