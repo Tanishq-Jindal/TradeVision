@@ -271,10 +271,10 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
                     continue
                 except httpx.HTTPStatusError as e:
                     last_error = e
-                    if e.response.status_code in (404, 400, 401, 403):
-                        # Try next candidate model if available
+                    if e.response.status_code in (404, 400, 401, 403, 429):
+                        logger.warning(f"[GenerateContent] Model {candidate} returned HTTP {e.response.status_code}. Trying next candidate...")
                         continue
-                    # For server errors / rate limits, re-raise
+                    # For 5xx server errors, re-raise
                     raise e
                 except Exception as e:
                     last_error = e
