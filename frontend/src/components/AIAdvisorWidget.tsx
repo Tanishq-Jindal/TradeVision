@@ -76,21 +76,36 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = "";
       let accumulated = "";
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        const text = decoder.decode(value, { stream: true });
-        const lines = text.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (line.startsWith("data:")) {
+            const dataStr = line.slice(5).trim();
+            if (!dataStr || dataStr === "[DONE]") continue;
             try {
-              const data = JSON.parse(line.replace("data: ", ""));
+              const data = JSON.parse(dataStr);
               if (data.token) {
                 accumulated += data.token;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    role: "assistant",
+                    content: accumulated,
+                  };
+                  return updated;
+                });
+              } else if (data.error && !accumulated) {
+                accumulated = data.error;
                 setMessages((prev) => {
                   const updated = [...prev];
                   updated[updated.length - 1] = {
@@ -103,6 +118,34 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
             } catch {}
           }
         }
+      }
+
+      // If SSE produced no text (e.g. proxy buffering), fallback to REST chat endpoint
+      if (!accumulated.trim()) {
+        try {
+          const restRes = await fetch(`${API_BASE_URL}/ai/advisor/chat`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ message: userMsg, symbol }),
+          });
+          if (restRes.ok) {
+            const restData = await restRes.json();
+            if (restData.message) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = {
+                  role: "assistant",
+                  content: restData.message,
+                };
+                return updated;
+              });
+            }
+          }
+        } catch {}
       }
     } catch (e) {
       console.error(e);

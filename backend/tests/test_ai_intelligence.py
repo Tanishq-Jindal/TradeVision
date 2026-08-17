@@ -162,7 +162,7 @@ async def test_ai_advisor_status_endpoint(async_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_ai_advisor_api_error_handling(async_client: AsyncClient):
-    """Verify Gemini API error states (400, 429, timeout) produce structured safe error messages."""
+    """Verify Gemini API error states (400, 401, 403, 404, 429, 500, timeout) produce structured safe error messages."""
     import httpx
     from unittest.mock import patch, AsyncMock
 
@@ -174,11 +174,41 @@ async def test_ai_advisor_api_error_handling(async_client: AsyncClient):
             assert res.status_code == 200
             assert "rate limit" in res.json()["message"].lower()
 
-        # 2. Invalid Key (400)
-        mock_400 = httpx.HTTPStatusError("400 Bad Request", request=AsyncMock(), response=AsyncMock(status_code=400, text="API key not valid"))
-        with patch("app.services.advisor.call_gemini_api", side_effect=mock_400):
+        # 2. Invalid Key (401)
+        mock_401 = httpx.HTTPStatusError("401 Unauthorized", request=AsyncMock(), response=AsyncMock(status_code=401, text="API key not valid"))
+        with patch("app.services.advisor.call_gemini_api", side_effect=mock_401):
             res = await async_client.post("/api/v1/ai/advisor/chat", json={"message": "hello"})
             assert res.status_code == 200
             assert "invalid gemini api key" in res.json()["message"].lower()
+
+        # 3. Model Not Found (404)
+        mock_404 = httpx.HTTPStatusError("404 Not Found", request=AsyncMock(), response=AsyncMock(status_code=404, text="Model not found"))
+        with patch("app.services.advisor.call_gemini_api", side_effect=mock_404):
+            res = await async_client.post("/api/v1/ai/advisor/chat", json={"message": "hello"})
+            assert res.status_code == 200
+            assert "not found" in res.json()["message"].lower()
+
+        # 4. Timeout
+        with patch("app.services.advisor.call_gemini_api", side_effect=httpx.TimeoutException("Connection timed out")):
+            res = await async_client.post("/api/v1/ai/advisor/chat", json={"message": "hello"})
+            assert res.status_code == 200
+            assert "timed out" in res.json()["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_ai_advisor_stream_endpoint(async_client: AsyncClient):
+    """Verify GET /api/v1/ai/advisor/stream streams tokens correctly over Server-Sent Events."""
+    from unittest.mock import patch, AsyncMock
+
+    with patch("app.services.advisor.settings.GEMINI_API_KEY", "test-key"):
+        with patch("app.services.advisor.call_gemini_api", new=AsyncMock(return_value="Hello! I am TradeVision AI quantitative advisor.")):
+            res = await async_client.get("/api/v1/ai/advisor/stream?message=hello&symbol=NVDA")
+            assert res.status_code == 200
+            assert "text/event-stream" in res.headers.get("content-type", "")
+            content = res.text
+            assert "event: message" in content
+            assert "Hello!" in content
+            assert "event: done" in content
+
 
 

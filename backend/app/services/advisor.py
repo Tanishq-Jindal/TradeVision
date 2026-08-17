@@ -25,10 +25,49 @@ def get_ai_service_status() -> dict:
     }
 
 
+async def get_available_gemini_models(api_key: str) -> list[str]:
+    """
+    Queries Google Generative Language API for models supporting generateContent for this key.
+    """
+    clean_api_key = (api_key or "").strip().strip("'\"` \r\n\t")
+    if clean_api_key.startswith("GEMINI_API_KEY="):
+        clean_api_key = clean_api_key[len("GEMINI_API_KEY="):].strip().strip("'\"` \r\n\t")
+    if clean_api_key.startswith("Bearer "):
+        clean_api_key = clean_api_key[len("Bearer "):].strip().strip("'\"` \r\n\t")
+
+    if not clean_api_key:
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={clean_api_key}",
+                headers={"x-goog-api-key": clean_api_key},
+            )
+            if res.status_code == 200:
+                data = res.json()
+                raw_models = data.get("models", [])
+                supported = []
+                for m in raw_models:
+                    methods = m.get("supportedGenerationMethods", [])
+                    if "generateContent" in methods:
+                        name = m.get("name", "")
+                        if name.startswith("models/"):
+                            name = name[len("models/"):]
+                        if name:
+                            supported.append(name)
+                logger.info(f"Discovered {len(supported)} Gemini models supporting generateContent: {supported[:5]}")
+                return supported
+    except Exception as e:
+        logger.warning(f"Could not discover Gemini models dynamically: {str(e)}")
+    return []
+
+
 async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] = None) -> str:
     """
     Direct asynchronous HTTP caller for Google Gemini generateContent REST API.
-    Supports automatic candidate fallback across official Gemini models if a specific model returns 404.
+    Performs dynamic model discovery, candidate selection, safe response diagnostics,
+    and robust multi-part content extraction.
     """
     clean_api_key = (api_key or "").strip().strip("'\"` \r\n\t")
     if clean_api_key.startswith("GEMINI_API_KEY="):
@@ -40,10 +79,17 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
     if raw_model.startswith("models/"):
         raw_model = raw_model[len("models/"):].strip()
 
+    # Discover models dynamically from API
+    discovered = await get_available_gemini_models(clean_api_key)
+
     candidate_models = [raw_model]
-    for m in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro"]:
+    for m in discovered:
         if m not in candidate_models:
             candidate_models.append(m)
+
+    for fallback_m in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro"]:
+        if fallback_m not in candidate_models:
+            candidate_models.append(fallback_m)
 
     payload = {
         "contents": [
@@ -73,36 +119,64 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
                             "x-goog-api-key": clean_api_key,
                         },
                     )
+
                     if res.status_code == 404:
                         logger.warning(f"Gemini model {candidate} on {api_version} returned 404. Trying next candidate...")
+                        last_error = httpx.HTTPStatusError(
+                            f"404 Not Found for model {candidate}",
+                            request=res.request,
+                            response=res,
+                        )
                         continue
+
+                    # Raise for 400, 401, 403, 429, 500
                     res.raise_for_status()
+
                     data = res.json()
 
-                    # Extract generated text from candidates
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        for cand in candidates:
-                            content = cand.get("content") or {}
-                            parts = content.get("parts", [])
-                            text_chunks = [
-                                p.get("text", "") for p in parts
-                                if isinstance(p, dict) and p.get("text")
-                            ]
-                            cand_text = "".join(text_chunks).strip()
-                            if cand_text:
-                                logger.info(f"Successfully received response from Gemini ({candidate} via {api_version})")
-                                return cand_text
+                    # Safe diagnostic logging (NEVER log keys or secrets)
+                    logger.info(
+                        f"Gemini API HTTP 200 from {candidate} ({api_version}): "
+                        f"Content-Type={res.headers.get('content-type')}, "
+                        f"JSON_Keys={list(data.keys()) if isinstance(data, dict) else type(data)}, "
+                        f"Candidates_Count={len(data.get('candidates', [])) if isinstance(data, dict) else 0}"
+                    )
 
-                    # Check for direct text fields
-                    if "text" in data and str(data["text"]).strip():
-                        return str(data["text"]).strip()
-
-                    # Check for prompt safety blocks
+                    # 1. Check for prompt safety blocks
                     feedback = data.get("promptFeedback", {})
                     if feedback.get("blockReason"):
-                        logger.warning(f"Gemini prompt blocked: {feedback.get('blockReason')}")
-                        return f"⚠️ Response blocked by safety policy ({feedback.get('blockReason')}). Please try rephrasing your message."
+                        block_reason = feedback.get("blockReason")
+                        logger.warning(f"Gemini prompt blocked by policy: {block_reason}")
+                        return f"⚠️ Response blocked by Gemini content policy ({block_reason}). Please try rephrasing your message."
+
+                    # 2. Extract generated text from candidates
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        for idx, cand in enumerate(candidates):
+                            finish_reason = cand.get("finishReason")
+                            content = cand.get("content") or {}
+                            parts = content.get("parts", [])
+                            logger.info(f"Candidate #{idx}: finishReason={finish_reason}, parts_count={len(parts)}")
+
+                            text_chunks = []
+                            for p in parts:
+                                if isinstance(p, dict) and "text" in p and p["text"]:
+                                    text_chunks.append(p["text"])
+                                elif isinstance(p, str) and p.strip():
+                                    text_chunks.append(p)
+
+                            cand_text = "".join(text_chunks).strip()
+                            if cand_text:
+                                logger.info(f"Successfully received {len(cand_text)} chars from Gemini ({candidate} via {api_version})")
+                                return cand_text
+
+                            if finish_reason and finish_reason not in ("STOP", "MAX_TOKENS"):
+                                logger.warning(f"Candidate #{idx} terminated with finishReason: {finish_reason}")
+                                return f"⚠️ Gemini response filtered by policy ({finish_reason}). Please try a different query."
+
+                    # 3. Check for direct text fields
+                    if "text" in data and str(data["text"]).strip():
+                        return str(data["text"]).strip()
 
                     logger.warning(f"Gemini model {candidate} on {api_version} returned 200 with no text. Trying next candidate...")
                     continue
@@ -110,7 +184,7 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
                     last_error = e
                     if e.response.status_code == 404:
                         continue
-                    # For non-404 errors (400, 403, 429), re-raise immediately
+                    # For non-404 errors (400, 401, 403, 429, 5xx), re-raise immediately
                     raise e
                 except Exception as e:
                     last_error = e
@@ -118,7 +192,7 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
 
     if last_error:
         raise last_error
-    return "Received empty response from Gemini AI. Please try asking a specific stock or portfolio question."
+    return "⚠️ Gemini AI returned an empty response. Please try asking a specific question about a stock (e.g., NVDA, AAPL) or your portfolio."
 
 
 async def get_advisor_chat_response(
