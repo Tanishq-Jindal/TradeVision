@@ -11,21 +11,49 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_db_url(url: str) -> str:
+    """
+    Ensures the database connection URL is formatted with the appropriate async driver scheme.
+    """
+    if not url:
+        return url
+    url = url.strip()
+    if (url.startswith('"') and url.endswith('"')) or (url.startswith("'") and url.endswith("'")):
+        url = url[1:-1].strip()
+
+    if url.startswith("postgres://"):
+        return "postgresql+asyncpg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + url[len("postgresql://"):]
+    elif url.startswith("postgresql+psycopg2://"):
+        return "postgresql+asyncpg://" + url[len("postgresql+psycopg2://"):]
+    elif url.startswith("sqlite://"):
+        return "sqlite+aiosqlite://" + url[len("sqlite://"):]
+
+    return url
+
+
+# Resolve normalized async database URL
+db_url: str = _normalize_db_url(settings.DATABASE_URL)
+
 # Engine configuration
-engine_kwargs = {
+engine_kwargs: dict = {
     "echo": False,
     "future": True,
 }
 
-if "sqlite" not in settings.DATABASE_URL:
+if "sqlite" not in db_url:
     engine_kwargs.update({
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": 5,
+        "max_overflow": 10,
         "pool_pre_ping": True,
+        "pool_recycle": 300,
     })
 
+# Initialize AsyncEngine with asyncpg driver
 engine: AsyncEngine = create_async_engine(
-    settings.DATABASE_URL,
+    db_url,
     **engine_kwargs
 )
 

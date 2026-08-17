@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import Any, List, Union
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     ENV: str = "development"
     LOG_LEVEL: str = "INFO"
 
-    # Database
+    # Database (Defaults to asyncpg driver for asynchronous SQLAlchemy engine)
     DATABASE_URL: str = "postgresql+asyncpg://tradewise:tradewise123@localhost:5432/tradewise"
 
     # Redis
@@ -33,6 +33,32 @@ class Settings(BaseSettings):
     FINNHUB_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     HUGGINGFACE_API_KEY: str = ""
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_database_url(cls, v: Union[str, Any]) -> str:
+        """
+        Normalizes database URLs to ensure asyncpg is used for PostgreSQL connections.
+        Handles Render / cloud PostgreSQL URLs starting with 'postgres://' or 'postgresql://'.
+        """
+        if not v or not isinstance(v, str):
+            return str(v) if v else ""
+        url = v.strip()
+        # Strip surrounding quotes if configured with quotes in environment variables
+        if (url.startswith('"') and url.endswith('"')) or (url.startswith("'") and url.endswith("'")):
+            url = url[1:-1].strip()
+
+        # Normalize postgres / postgresql schemes to postgresql+asyncpg
+        if url.startswith("postgres://"):
+            url = "postgresql+asyncpg://" + url[len("postgres://"):]
+        elif url.startswith("postgresql://"):
+            url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+        elif url.startswith("postgresql+psycopg2://"):
+            url = "postgresql+asyncpg://" + url[len("postgresql+psycopg2://"):]
+        elif url.startswith("sqlite://"):
+            url = "sqlite+aiosqlite://" + url[len("sqlite://"):]
+
+        return url
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
