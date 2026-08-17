@@ -22,7 +22,23 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/ai/advisor/status`);
+        if (res.ok) {
+          const data = await res.json();
+          setIsConfigured(data.configured);
+        }
+      } catch {
+        setIsConfigured(false);
+      }
+    };
+    checkStatus();
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -120,9 +136,22 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
             </div>
           </div>
         </div>
-        <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          Online
-        </span>
+        {isConfigured === true && (
+          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Gemini Live
+          </span>
+        )}
+        {isConfigured === false && (
+          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            Setup Key
+          </span>
+        )}
+        {isConfigured === null && (
+          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">
+            Connecting...
+          </span>
+        )}
       </div>
 
       {/* Messages */}

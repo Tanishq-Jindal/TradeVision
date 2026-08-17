@@ -47,14 +47,14 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
             }
         ],
         "generationConfig": {
-            "temperature": 0.3,
-            "maxOutputTokens": 1024,
+            "temperature": 0.4,
+            "maxOutputTokens": 2048,
         },
     }
 
     last_error: Optional[Exception] = None
 
-    async with httpx.AsyncClient(timeout=25.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         for candidate in candidate_models:
             for api_version in ["v1beta", "v1"]:
                 url = f"https://generativelanguage.googleapis.com/{api_version}/models/{candidate}:generateContent?key={api_key}"
@@ -62,7 +62,10 @@ async def call_gemini_api(prompt: str, api_key: str, model_name: Optional[str] =
                     res = await client.post(
                         url,
                         json=payload,
-                        headers={"Content-Type": "application/json"},
+                        headers={
+                            "Content-Type": "application/json",
+                            "x-goog-api-key": api_key,
+                        },
                     )
                     if res.status_code == 404:
                         logger.warning(f"Gemini model {candidate} on {api_version} returned 404. Trying next candidate...")
