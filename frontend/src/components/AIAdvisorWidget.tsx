@@ -177,7 +177,8 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: `Hello! I'm your TradeVision Quantitative Advisor. I synthesize real-time ML directional probabilities, technical indicators, news sentiment, and your real portfolio context. Ask me anything about **${symbol}** or your overall portfolio strategy.`,
+      content:
+        "Hello! I'm your TradeVision Quantitative Advisor. I synthesize real-time market data, ML signals, technical indicators, news sentiment, and portfolio context. Ask me anything about the markets, individual stocks, or your portfolio strategy.",
     },
   ]);
   const [input, setInput] = useState("");
