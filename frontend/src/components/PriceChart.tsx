@@ -100,7 +100,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
   const isPositive = quote ? (quote.d ?? 0) >= 0 : true;
 
   return (
-    <div className="rounded-2xl bg-slate-950/80 border border-slate-800/80 p-5 backdrop-blur-xl shadow-xl space-y-4">
+    <div id="main-market-chart" className="rounded-2xl bg-slate-950/80 border border-slate-800/80 p-5 backdrop-blur-xl shadow-xl space-y-4">
       {/* Chart Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-800/60">
         <div className="flex items-center space-x-3">

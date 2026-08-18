@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { MarketPulseResponse } from "@/types";
+import { MarketIndexItem, MarketPulseResponse } from "@/types";
 import { Globe, AlertCircle, RefreshCw } from "lucide-react";
 
 interface GlobalMarketPulseProps {
@@ -39,6 +39,30 @@ export const GlobalMarketPulse: React.FC<GlobalMarketPulseProps> = ({ onSelectSy
   }, []);
 
   const isLive = data?.market_status === "Live";
+
+  const handleIndexClick = (item: MarketIndexItem) => {
+    const symbolMap: Record<string, string> = {
+      "^GSPC": "SPY",
+      "S&P 500": "SPY",
+      "^IXIC": "QQQ",
+      "NASDAQ": "QQQ",
+      "^DJI": "DIA",
+      "DOW JONES": "DIA",
+      "^VIX": "^VIX",
+      "VIX": "^VIX",
+    };
+
+    const target = symbolMap[item.symbol] || symbolMap[item.name] || item.etf_proxy || item.symbol;
+    if (onSelectSymbol && target) {
+      onSelectSymbol(target);
+      setTimeout(() => {
+        const chartElement = document.getElementById("main-market-chart");
+        if (chartElement) {
+          chartElement.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 50);
+    }
+  };
 
   return (
     <div className="rounded-2xl bg-slate-950/80 border border-slate-800/80 p-4 backdrop-blur-xl shadow-xl space-y-3">
@@ -125,21 +149,12 @@ export const GlobalMarketPulse: React.FC<GlobalMarketPulseProps> = ({ onSelectSy
             return (
               <div
                 key={idx.symbol}
-                onClick={() => {
-                  if (idx.etf_proxy && onSelectSymbol) {
-                    onSelectSymbol(idx.etf_proxy);
-                  }
-                }}
-                className={`group flex items-center justify-between p-2 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/50 hover:border-slate-700/80 transition ${
-                  idx.etf_proxy ? "cursor-pointer" : ""
-                }`}
+                onClick={() => handleIndexClick(idx)}
+                className="group flex items-center justify-between p-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/50 hover:border-slate-700/80 transition cursor-pointer"
               >
                 <div>
                   <div className="font-bold text-xs text-white group-hover:text-blue-400 transition-colors">
                     {idx.name}
-                  </div>
-                  <div className="text-[9px] font-mono text-slate-400">
-                    {idx.symbol}
                   </div>
                 </div>
 

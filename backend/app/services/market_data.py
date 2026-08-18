@@ -734,7 +734,7 @@ async def get_market_pulse() -> MarketPulseResponse:
         {"symbol": "^GSPC", "name": "S&P 500", "etf": "SPY"},
         {"symbol": "^IXIC", "name": "NASDAQ", "etf": "QQQ"},
         {"symbol": "^DJI", "name": "DOW JONES", "etf": "DIA"},
-        {"symbol": "^VIX", "name": "VIX", "etf": None},
+        {"symbol": "^VIX", "name": "VIX", "etf": "^VIX"},
     ]
 
     tasks = [fetch_real_quote_from_yahoo(cfg["symbol"]) for cfg in indices_config]
