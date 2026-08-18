@@ -28,6 +28,7 @@ import {
   AutopilotConfig,
   CorrelationNetworkResponse,
   MarketMoversResponse,
+  MarketPulseResponse,
 } from "@/types";
 
 const TOKEN_KEY = "tradevision_access_token";
@@ -259,6 +260,10 @@ export const api = {
 
   getMarketMovers: async (limit: number = 6): Promise<MarketMoversResponse> => {
     return await request<MarketMoversResponse>(`/market/movers?limit=${limit}`);
+  },
+
+  getMarketPulse: async (): Promise<MarketPulseResponse> => {
+    return await request<MarketPulseResponse>("/market/pulse");
   },
 
   // Trading

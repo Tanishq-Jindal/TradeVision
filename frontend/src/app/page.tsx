@@ -47,6 +47,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { AutopilotWidget } from "@/components/AutopilotWidget";
 import { CorrelationWidget } from "@/components/CorrelationWidget";
 import { MarketMovers } from "@/components/MarketMovers";
+import { GlobalMarketPulse } from "@/components/GlobalMarketPulse";
 
 export default function HomePage() {
   const { user, loading: authLoading, logout, login } = useAuth();
@@ -341,6 +342,9 @@ export default function HomePage() {
                 {/* Conversational AI Financial Advisor */}
                 <AIAdvisorWidget symbol={selectedSymbol} />
 
+                {/* Global Market Pulse Indices Card */}
+                <GlobalMarketPulse onSelectSymbol={(sym) => setSelectedSymbol(sym)} />
+
                 {/* Real-Time Market Movers Sidebar */}
                 <MarketMovers onSelectSymbol={(sym) => setSelectedSymbol(sym)} />
               </div>
@@ -457,7 +461,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-800/80 bg-slate-950/40 px-6 py-6 text-center text-xs text-slate-500">
-        TradeVision · Full-Stack AI Paper Trading & Portfolio Intelligence Platform · Built for III 5.0 Hackathon
+        TradeVision · Full-Stack AI Paper Trading & Portfolio Intelligence Platform · Real-Time Markets. Smarter Decisions.
       </footer>
     </div>
   );

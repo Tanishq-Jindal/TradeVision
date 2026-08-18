@@ -6,6 +6,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.market import (
     MarketMoversResponse,
+    MarketPulseResponse,
     NewsArticle,
     OHLCVResponse,
     QuoteResponse,
@@ -13,6 +14,7 @@ from app.schemas.market import (
 )
 from app.services.market_data import (
     get_market_movers,
+    get_market_pulse,
     get_news,
     get_ohlcv,
     get_quote,
@@ -21,6 +23,16 @@ from app.services.market_data import (
 )
 
 router = APIRouter()
+
+
+@router.get(
+    "/pulse",
+    response_model=MarketPulseResponse,
+    summary="Get global market pulse indices",
+    description="Returns real-time major market indices (S&P 500, NASDAQ, DOW JONES, VIX).",
+)
+async def pulse() -> MarketPulseResponse:
+    return await get_market_pulse()
 
 
 @router.get(

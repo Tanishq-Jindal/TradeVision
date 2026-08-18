@@ -11,7 +11,9 @@ from app.core.config import settings
 from app.core.errors import NotFoundError
 from app.schemas.market import (
     CandleBar,
+    MarketIndexItem,
     MarketMoversResponse,
+    MarketPulseResponse,
     MoverItem,
     NewsArticle,
     OHLCVResponse,
@@ -52,6 +54,11 @@ UNIVERSE: Dict[str, Dict[str, str]] = {
     "CVX": {"name": "Chevron Corporation", "sector": "Energy"},
     "SPY": {"name": "SPDR S&P 500 ETF Trust", "sector": "Index ETF"},
     "QQQ": {"name": "Invesco QQQ Trust", "sector": "Tech ETF"},
+    "DIA": {"name": "SPDR Dow Jones Industrial Average ETF", "sector": "Index ETF"},
+    "^GSPC": {"name": "S&P 500", "sector": "Index"},
+    "^IXIC": {"name": "NASDAQ", "sector": "Index"},
+    "^DJI": {"name": "DOW JONES", "sector": "Index"},
+    "^VIX": {"name": "VIX", "sector": "Volatility"},
 }
 
 # In-Memory Cache (Level 1)
@@ -559,4 +566,84 @@ async def get_market_movers(limit: int = 6) -> MarketMoversResponse:
 
     _movers_cache = response.model_dump()
     _movers_cached_at = now
+    return response
+
+
+TTL_PULSE = 15
+_pulse_cache: Optional[Dict[str, any]] = None
+_pulse_cached_at: float = 0.0
+
+
+async def get_market_pulse() -> MarketPulseResponse:
+    """
+    Returns real-time index benchmarks for S&P 500, NASDAQ, DOW JONES, and VIX.
+    Zero simulated or random-walk data.
+    """
+    global _pulse_cache, _pulse_cached_at
+    now = time.time()
+
+    if _pulse_cache and (now - _pulse_cached_at < TTL_PULSE):
+        return MarketPulseResponse(**_pulse_cache)
+
+    indices_config = [
+        {"symbol": "^GSPC", "name": "S&P 500", "etf": "SPY"},
+        {"symbol": "^IXIC", "name": "NASDAQ", "etf": "QQQ"},
+        {"symbol": "^DJI", "name": "DOW JONES", "etf": "DIA"},
+        {"symbol": "^VIX", "name": "VIX", "etf": None},
+    ]
+
+    tasks = [fetch_real_quote_from_yahoo(cfg["symbol"]) for cfg in indices_config]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    items: List[MarketIndexItem] = []
+    overall_status = "Live"
+
+    for cfg, res in zip(indices_config, results):
+        if isinstance(res, QuoteResponse) and res.current_price > 0:
+            items.append(
+                MarketIndexItem(
+                    symbol=cfg["symbol"],
+                    name=cfg["name"],
+                    price=round(res.current_price, 2),
+                    change=round(res.change, 2),
+                    change_percent=round(res.change_percent, 2),
+                    market_status=res.market_status,
+                    etf_proxy=cfg["etf"],
+                )
+            )
+            overall_status = res.market_status
+        else:
+            # Fallback to ETF proxy if index query failed
+            if cfg["etf"]:
+                etf_q = await fetch_real_quote_from_yahoo(cfg["etf"])
+                if etf_q:
+                    items.append(
+                        MarketIndexItem(
+                            symbol=cfg["symbol"],
+                            name=cfg["name"],
+                            price=round(etf_q.current_price, 2),
+                            change=round(etf_q.change, 2),
+                            change_percent=round(etf_q.change_percent, 2),
+                            market_status=etf_q.market_status,
+                            etf_proxy=cfg["etf"],
+                        )
+                    )
+                    overall_status = etf_q.market_status
+
+    if not items:
+        raise NotFoundError(
+            message="Global market pulse data is currently unavailable.",
+            code="NOT_FOUND",
+        )
+
+    response = MarketPulseResponse(
+        indices=items,
+        updated_at=int(now),
+        market_status=overall_status,
+        source="Real Market Data Feed",
+        simulated=False,
+    )
+
+    _pulse_cache = response.model_dump()
+    _pulse_cached_at = now
     return response

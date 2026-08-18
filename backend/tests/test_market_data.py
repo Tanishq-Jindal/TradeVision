@@ -149,6 +149,30 @@ async def test_get_market_movers_endpoint(async_client: AsyncClient):
     assert "change_percent" in top_gainer
 
 
+@pytest.mark.asyncio
+async def test_get_market_pulse_endpoint(async_client: AsyncClient):
+    """Verify global market pulse endpoint returns real major indices."""
+    response = await async_client.get("/api/v1/market/pulse")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "indices" in data
+    assert len(data["indices"]) == 4
+    assert data["simulated"] is False
+
+    names = [idx["name"] for idx in data["indices"]]
+    assert "S&P 500" in names
+    assert "NASDAQ" in names
+    assert "DOW JONES" in names
+    assert "VIX" in names
+
+    for idx in data["indices"]:
+        assert idx["price"] > 0
+        assert "change" in idx
+        assert "change_percent" in idx
+        assert "market_status" in idx
+
+
 def test_technical_indicators():
     """Verify mathematical correctness of pure-function indicator formulas."""
     prices = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 25.0]

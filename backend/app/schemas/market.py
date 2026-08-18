@@ -127,3 +127,21 @@ class MarketMoversResponse(BaseModel):
     market_status: str = "Live"
     source: str = "Real Market Data Feed"
     simulated: bool = False
+
+
+class MarketIndexItem(BaseModel):
+    symbol: str
+    name: str
+    price: float
+    change: float
+    change_percent: float
+    market_status: str = "Live"
+    etf_proxy: Optional[str] = None
+
+
+class MarketPulseResponse(BaseModel):
+    indices: List[MarketIndexItem]
+    updated_at: int
+    market_status: str = "Live"
+    source: str = "Real Market Data Feed"
+    simulated: bool = False

@@ -137,6 +137,24 @@ export interface MarketMoversResponse {
   simulated: boolean;
 }
 
+export interface MarketIndexItem {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  market_status: string;
+  etf_proxy?: string | null;
+}
+
+export interface MarketPulseResponse {
+  indices: MarketIndexItem[];
+  updated_at: number;
+  market_status: string;
+  source: string;
+  simulated: boolean;
+}
+
 export interface OrderInput {
   symbol: string;
   side: "BUY" | "SELL";
