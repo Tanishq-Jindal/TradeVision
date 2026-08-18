@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Position } from "@/types";
+import { formatSymbolDisplay } from "@/lib/utils";
 import { TrendingUp, TrendingDown, ArrowRightLeft, Layers } from "lucide-react";
 
 interface PositionsTableProps {
@@ -61,7 +62,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({
                   className="hover:bg-slate-900/50 transition cursor-pointer group"
                 >
                   <td className="py-3.5 px-4 font-bold text-white group-hover:text-blue-400 transition">
-                    {pos.symbol}
+                    {formatSymbolDisplay(pos.symbol)}
                   </td>
                   <td className="py-3.5 px-4 font-mono text-slate-300">
                     {pos.quantity.toLocaleString(undefined, { minimumFractionDigits: 2 })}

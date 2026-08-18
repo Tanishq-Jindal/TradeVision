@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Trade } from "@/types";
+import { formatSymbolDisplay } from "@/lib/utils";
 import { History, ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface RecentTradesProps {
@@ -77,7 +78,7 @@ export const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                       {t.side}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 font-bold text-white">{t.symbol}</td>
+                  <td className="py-2.5 px-3 font-bold text-white">{formatSymbolDisplay(t.symbol)}</td>
                   <td className="py-2.5 px-3 font-mono text-slate-300">
                     {t.quantity.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </td>

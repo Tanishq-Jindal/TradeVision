@@ -48,6 +48,7 @@ import { AutopilotWidget } from "@/components/AutopilotWidget";
 import { CorrelationWidget } from "@/components/CorrelationWidget";
 import { MarketMovers } from "@/components/MarketMovers";
 import { GlobalMarketPulse } from "@/components/GlobalMarketPulse";
+import { formatSymbolDisplay } from "@/lib/utils";
 
 export default function HomePage() {
   const { user, loading: authLoading, logout, login } = useAuth();
@@ -327,7 +328,7 @@ export default function HomePage() {
                       className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white transition flex items-center justify-center gap-1.5"
                     >
                       <DollarSign className="w-3.5 h-3.5" />
-                      Trade {selectedSymbol}
+                      Trade {formatSymbolDisplay(selectedSymbol)}
                     </button>
                     <button
                       onClick={() => setIsBacktestModalOpen(true)}

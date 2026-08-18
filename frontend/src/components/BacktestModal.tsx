@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { BacktestResult } from "@/types";
 import { api } from "@/lib/api";
+import { formatSymbolDisplay } from "@/lib/utils";
 import { Play, TrendingUp, TrendingDown, Clock, ShieldCheck, X, Loader2, Sparkles } from "lucide-react";
 
 interface BacktestModalProps {
@@ -60,7 +61,7 @@ export const BacktestModal: React.FC<BacktestModalProps> = ({ isOpen, onClose, s
           </div>
           <div>
             <h3 className="text-base font-bold text-white">
-              Natural Language Strategy Backtester: {symbol}
+              Natural Language Strategy Backtester: {formatSymbolDisplay(symbol)}
             </h3>
             <p className="text-xs text-slate-400">
               Simulate quantitative rules over historical daily price bars

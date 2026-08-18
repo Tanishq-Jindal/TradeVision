@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { WatchlistItem, SymbolSearchResult } from "@/types";
 import { api } from "@/lib/api";
+import { formatSymbolDisplay } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Search, Plus, Trash2, Loader2, Bookmark } from "lucide-react";
 
 interface WatchlistWidgetProps {
@@ -98,7 +99,7 @@ export const WatchlistWidget: React.FC<WatchlistWidgetProps> = ({
                 className="p-2.5 hover:bg-slate-800/80 flex items-center justify-between cursor-pointer transition text-xs"
               >
                 <div>
-                  <span className="font-bold text-white">{res.symbol}</span>
+                  <span className="font-bold text-white">{formatSymbolDisplay(res.symbol)}</span>
                   <span className="ml-2 text-[11px] text-slate-400">{res.description}</span>
                 </div>
                 <button className="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 text-[10px] font-bold uppercase hover:bg-blue-600 hover:text-white transition">
@@ -128,7 +129,7 @@ export const WatchlistWidget: React.FC<WatchlistWidgetProps> = ({
             >
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-sm text-white">{item.symbol}</span>
+                  <span className="font-bold text-sm text-white">{formatSymbolDisplay(item.symbol)}</span>
                   {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
                 </div>
                 <div className="text-[11px] text-slate-400 truncate max-w-[120px]">{item.name}</div>

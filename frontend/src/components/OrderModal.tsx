@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Quote, Position } from "@/types";
 import { api, ApiError } from "@/lib/api";
+import { formatSymbolDisplay, formatSymbolShort } from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight, DollarSign, Loader2, AlertCircle, CheckCircle2, X } from "lucide-react";
 
 interface OrderModalProps {
@@ -103,10 +104,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         {/* Header */}
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
-            {symbol.slice(0, 3)}
+            {formatSymbolShort(symbol)}
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Execute Paper Trade: {symbol}</h3>
+            <h3 className="text-base font-bold text-white">Execute Paper Trade: {formatSymbolDisplay(symbol)}</h3>
             <div className="text-xs text-slate-400 font-mono">
               Market Price: <strong className="text-slate-200">${price.toFixed(2)}</strong>
             </div>
@@ -124,7 +125,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            Buy {symbol}
+            Buy {formatSymbolDisplay(symbol)}
           </button>
           <button
             type="button"
@@ -135,7 +136,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            Sell {symbol}
+            Sell {formatSymbolDisplay(symbol)}
           </button>
         </div>
 

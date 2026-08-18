@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { createChart, CandlestickSeries, IChartApi, ISeriesApi, CandlestickData, Time } from "lightweight-charts";
 import { CandleBar, Quote } from "@/types";
 import { TrendingUp, TrendingDown, Clock } from "lucide-react";
+import { formatSymbolDisplay, formatSymbolShort } from "@/lib/utils";
 
 interface PriceChartProps {
   symbol: string;
@@ -105,11 +106,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-800/60">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center font-bold text-white tracking-wider">
-            {symbol.slice(0, 3)}
+            {formatSymbolShort(symbol)}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold text-white tracking-tight">{symbol}</h3>
+              <h3 className="text-lg font-bold text-white tracking-tight">{formatSymbolDisplay(symbol)}</h3>
               {quote && (() => {
                 const status = quote.market_status || "Closed";
                 if (status === "Live") {

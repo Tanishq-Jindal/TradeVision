@@ -41,18 +41,19 @@ export const GlobalMarketPulse: React.FC<GlobalMarketPulseProps> = ({ onSelectSy
   const isLive = data?.market_status === "Live";
 
   const handleIndexClick = (item: MarketIndexItem) => {
+    // Direct index mapping (No ETF proxy substitution)
     const symbolMap: Record<string, string> = {
-      "^GSPC": "SPY",
-      "S&P 500": "SPY",
-      "^IXIC": "QQQ",
-      "NASDAQ": "QQQ",
-      "^DJI": "DIA",
-      "DOW JONES": "DIA",
+      "^GSPC": "^GSPC",
+      "S&P 500": "^GSPC",
+      "^IXIC": "^IXIC",
+      "NASDAQ": "^IXIC",
+      "^DJI": "^DJI",
+      "DOW JONES": "^DJI",
       "^VIX": "^VIX",
       "VIX": "^VIX",
     };
 
-    const target = symbolMap[item.symbol] || symbolMap[item.name] || item.etf_proxy || item.symbol;
+    const target = symbolMap[item.symbol] || symbolMap[item.name] || item.symbol;
     if (onSelectSymbol && target) {
       onSelectSymbol(target);
       setTimeout(() => {

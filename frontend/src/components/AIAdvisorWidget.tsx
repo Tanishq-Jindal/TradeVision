@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, User, Send, Sparkles, Loader2, ArrowRight, ChevronDown } from "lucide-react";
 import { API_BASE_URL, getStoredToken } from "@/lib/api";
+import { formatSymbolDisplay } from "@/lib/utils";
 
 function formatInlineText(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
@@ -383,7 +384,7 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
               AI Quantitative Advisor
             </h3>
             <div className="text-[10px] text-slate-400">
-              Focus Symbol: <strong className="text-white">{symbol}</strong>
+              Focus Symbol: <strong className="text-white">{formatSymbolDisplay(symbol)}</strong>
             </div>
           </div>
         </div>
@@ -460,9 +461,9 @@ export const AIAdvisorWidget: React.FC<AIAdvisorWidgetProps> = ({ symbol }) => {
       {/* Quick Prompts */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 pt-1">
         {[
-          `Analyze ${symbol} Signals`,
-          `Calculate 95% VaR for ${symbol}`,
-          `Explain Swarm Decision on ${symbol}`,
+          `Analyze ${formatSymbolDisplay(symbol)} Signals`,
+          `Calculate 95% VaR for ${formatSymbolDisplay(symbol)}`,
+          `Explain Swarm Decision on ${formatSymbolDisplay(symbol)}`,
         ].map((prompt, i) => (
           <button
             key={i}

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { CommandParseResponse } from "@/types";
 import { api } from "@/lib/api";
+import { formatSymbolDisplay } from "@/lib/utils";
 import { Terminal, ArrowRight, Loader2, DollarSign, Bookmark, Play, X, Sparkles } from "lucide-react";
 
 interface CommandPaletteProps {
@@ -104,7 +105,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               </span>
               {parsed.symbol && (
                 <span className="font-bold text-white px-2 py-0.5 rounded bg-blue-500/20">
-                  {parsed.symbol}
+                  {formatSymbolDisplay(parsed.symbol)}
                 </span>
               )}
             </div>

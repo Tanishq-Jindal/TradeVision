@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { SignalScanItem } from "@/types";
 import { api } from "@/lib/api";
+import { formatSymbolDisplay } from "@/lib/utils";
 import { Radio, Sparkles, TrendingUp, TrendingDown, ArrowRight, RefreshCw } from "lucide-react";
 
 interface SignalScannerWidgetProps {
@@ -68,7 +69,7 @@ export const SignalScannerWidget: React.FC<SignalScannerWidgetProps> = ({ onSele
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-bold text-sm text-white group-hover:text-blue-400 transition">
-                      {sig.symbol}
+                      {formatSymbolDisplay(sig.symbol)}
                     </div>
                     <div className="text-[10px] text-slate-400">{sig.name}</div>
                   </div>
