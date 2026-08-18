@@ -46,6 +46,7 @@ import { BacktestModal } from "@/components/BacktestModal";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AutopilotWidget } from "@/components/AutopilotWidget";
 import { CorrelationWidget } from "@/components/CorrelationWidget";
+import { MarketMovers } from "@/components/MarketMovers";
 
 export default function HomePage() {
   const { user, loading: authLoading, logout, login } = useAuth();
@@ -339,6 +340,9 @@ export default function HomePage() {
 
                 {/* Conversational AI Financial Advisor */}
                 <AIAdvisorWidget symbol={selectedSymbol} />
+
+                {/* Real-Time Market Movers Sidebar */}
+                <MarketMovers onSelectSymbol={(sym) => setSelectedSymbol(sym)} />
               </div>
             </div>
           </>

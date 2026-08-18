@@ -9,7 +9,15 @@ import redis.asyncio as aioredis
 
 from app.core.config import settings
 from app.core.errors import NotFoundError
-from app.schemas.market import CandleBar, NewsArticle, OHLCVResponse, QuoteResponse, SymbolSearchResult
+from app.schemas.market import (
+    CandleBar,
+    MarketMoversResponse,
+    MoverItem,
+    NewsArticle,
+    OHLCVResponse,
+    QuoteResponse,
+    SymbolSearchResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -474,3 +482,81 @@ async def quote_event_generator(symbols: List[str]) -> AsyncGenerator[str, None]
             except Exception as e:
                 logger.warning(f"[QuoteStream] Failed to get real quote for {sym}: {str(e)}")
         await asyncio.sleep(2.5)
+
+
+TTL_MOVERS = 15
+_movers_cache: Optional[Dict[str, any]] = None
+_movers_cached_at: float = 0.0
+
+
+async def get_market_movers(limit: int = 6) -> MarketMoversResponse:
+    """
+    Calculates top gainers and top losers dynamically from real live exchange market data.
+    Sorts descending for Top Gainers and ascending for Top Losers.
+    Zero fake or simulated numbers.
+    """
+    global _movers_cache, _movers_cached_at
+    now = time.time()
+
+    if _movers_cache and (now - _movers_cached_at < TTL_MOVERS):
+        return MarketMoversResponse(**_movers_cache)
+
+    symbols = list(UNIVERSE.keys())
+    tasks = [get_quote(s) for s in symbols]
+    quotes_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    valid_quotes: List[QuoteResponse] = [
+        q for q in quotes_results if isinstance(q, QuoteResponse) and q.current_price > 0
+    ]
+
+    if not valid_quotes:
+        raise NotFoundError(
+            message="Live market movers data is currently unavailable.",
+            code="NOT_FOUND",
+        )
+
+    # Top Gainers: sorted descending by percentage change
+    sorted_gainers = sorted(valid_quotes, key=lambda q: q.change_percent, reverse=True)
+    # Top Losers: sorted ascending by percentage change
+    sorted_losers = sorted(valid_quotes, key=lambda q: q.change_percent)
+
+    gainers_items = [
+        MoverItem(
+            rank=i + 1,
+            symbol=q.symbol,
+            company=q.company or q.name or UNIVERSE.get(q.symbol, {}).get("name", q.symbol),
+            price=round(q.current_price, 2),
+            change=round(q.change, 2),
+            change_percent=round(q.change_percent, 2),
+            market_status=q.market_status,
+        )
+        for i, q in enumerate(sorted_gainers[:limit])
+    ]
+
+    losers_items = [
+        MoverItem(
+            rank=i + 1,
+            symbol=q.symbol,
+            company=q.company or q.name or UNIVERSE.get(q.symbol, {}).get("name", q.symbol),
+            price=round(q.current_price, 2),
+            change=round(q.change, 2),
+            change_percent=round(q.change_percent, 2),
+            market_status=q.market_status,
+        )
+        for i, q in enumerate(sorted_losers[:limit])
+    ]
+
+    overall_status = valid_quotes[0].market_status if valid_quotes else "Live"
+
+    response = MarketMoversResponse(
+        gainers=gainers_items,
+        losers=losers_items,
+        updated_at=int(now),
+        market_status=overall_status,
+        source="Real Market Data Feed",
+        simulated=False,
+    )
+
+    _movers_cache = response.model_dump()
+    _movers_cached_at = now
+    return response

@@ -5,12 +5,14 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.schemas.market import (
+    MarketMoversResponse,
     NewsArticle,
     OHLCVResponse,
     QuoteResponse,
     SymbolSearchResult,
 )
 from app.services.market_data import (
+    get_market_movers,
     get_news,
     get_ohlcv,
     get_quote,
@@ -19,6 +21,18 @@ from app.services.market_data import (
 )
 
 router = APIRouter()
+
+
+@router.get(
+    "/movers",
+    response_model=MarketMoversResponse,
+    summary="Get top market gainers and losers",
+    description="Returns dynamically ranked top gainers and top losers based on real live market percentage change.",
+)
+async def movers(
+    limit: int = Query(6, ge=1, le=20, description="Number of gainers and losers to return"),
+) -> MarketMoversResponse:
+    return await get_market_movers(limit=limit)
 
 
 @router.get(

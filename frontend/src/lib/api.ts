@@ -27,6 +27,7 @@ import {
   AutopilotStatusResponse,
   AutopilotConfig,
   CorrelationNetworkResponse,
+  MarketMoversResponse,
 } from "@/types";
 
 const TOKEN_KEY = "tradevision_access_token";
@@ -254,6 +255,10 @@ export const api = {
 
   getNews: async (symbol: string): Promise<NewsArticle[]> => {
     return await request<NewsArticle[]>(`/market/news/${encodeURIComponent(symbol)}`);
+  },
+
+  getMarketMovers: async (limit: number = 6): Promise<MarketMoversResponse> => {
+    return await request<MarketMoversResponse>(`/market/movers?limit=${limit}`);
   },
 
   // Trading

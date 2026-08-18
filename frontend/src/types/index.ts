@@ -118,6 +118,25 @@ export interface NewsArticle {
   symbol: string;
 }
 
+export interface MoverItem {
+  rank: number;
+  symbol: string;
+  company: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  market_status?: string;
+}
+
+export interface MarketMoversResponse {
+  gainers: MoverItem[];
+  losers: MoverItem[];
+  updated_at: number;
+  market_status: string;
+  source: string;
+  simulated: boolean;
+}
+
 export interface OrderInput {
   symbol: string;
   side: "BUY" | "SELL";

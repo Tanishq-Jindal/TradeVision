@@ -108,3 +108,22 @@ class NewsArticle(BaseModel):
     url: str
     datetime: int
     symbol: str
+
+
+class MoverItem(BaseModel):
+    rank: int
+    symbol: str
+    company: str
+    price: float
+    change: float
+    change_percent: float
+    market_status: str = "Live"
+
+
+class MarketMoversResponse(BaseModel):
+    gainers: List[MoverItem]
+    losers: List[MoverItem]
+    updated_at: int
+    market_status: str = "Live"
+    source: str = "Real Market Data Feed"
+    simulated: bool = False

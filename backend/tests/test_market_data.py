@@ -118,6 +118,37 @@ async def test_get_news_endpoint(async_client: AsyncClient):
         assert "source" in art
 
 
+@pytest.mark.asyncio
+async def test_get_market_movers_endpoint(async_client: AsyncClient):
+    """Verify market movers endpoint returns top gainers and losers sorted dynamically."""
+    response = await async_client.get("/api/v1/market/movers?limit=6")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "gainers" in data
+    assert "losers" in data
+    assert len(data["gainers"]) > 0
+    assert len(data["losers"]) > 0
+    assert data["simulated"] is False
+
+    # Verify gainers are sorted descending by percentage change
+    g_pcts = [g["change_percent"] for g in data["gainers"]]
+    assert g_pcts == sorted(g_pcts, reverse=True)
+
+    # Verify losers are sorted ascending by percentage change
+    l_pcts = [l["change_percent"] for l in data["losers"]]
+    assert l_pcts == sorted(l_pcts)
+
+    # Check mover fields
+    top_gainer = data["gainers"][0]
+    assert "rank" in top_gainer
+    assert "symbol" in top_gainer
+    assert "company" in top_gainer
+    assert "price" in top_gainer
+    assert "change" in top_gainer
+    assert "change_percent" in top_gainer
+
+
 def test_technical_indicators():
     """Verify mathematical correctness of pure-function indicator formulas."""
     prices = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 25.0]
