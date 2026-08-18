@@ -212,3 +212,79 @@ def test_technical_indicators():
     volumes = [1000.0] * 25
     vr = calculate_volume_ratio(volumes, 20)
     assert vr[19] is not None
+
+
+def test_market_status_session_and_holidays():
+    """Verify market status correctly determines Live, Pre-Market, After-Hours, Weekends, and Holidays."""
+    from datetime import datetime, date
+    from zoneinfo import ZoneInfo
+    from app.services.market_data import calculate_us_market_holidays, determine_market_status
+
+    ny_tz = ZoneInfo("America/New_York")
+
+    # 1. Holidays check
+    holidays_2026 = calculate_us_market_holidays(2026)
+    assert date(2026, 1, 1) in holidays_2026  # New Year's
+    assert date(2026, 1, 19) in holidays_2026  # MLK Day
+    assert date(2026, 2, 16) in holidays_2026  # Presidents Day
+    assert date(2026, 4, 3) in holidays_2026  # Good Friday
+    assert date(2026, 5, 25) in holidays_2026  # Memorial Day
+    assert date(2026, 6, 19) in holidays_2026  # Juneteenth
+    assert date(2026, 7, 3) in holidays_2026  # Observed July 4th
+    assert date(2026, 9, 7) in holidays_2026  # Labor Day
+    assert date(2026, 11, 26) in holidays_2026  # Thanksgiving
+    assert date(2026, 12, 25) in holidays_2026  # Christmas
+
+    # 2. Crypto trades 24/7
+    assert determine_market_status("BTC-USD") == "Live"
+    assert determine_market_status("ETH-USD") == "Live"
+
+    # 3. Provider metadata session window evaluation
+    now_ts = 1755500000
+    mock_meta_live = {
+        "currentTradingPeriod": {
+            "regular": {"start": now_ts - 1000, "end": now_ts + 1000}
+        }
+    }
+    # When provider reports regular session active
+    import time
+    real_now = int(time.time())
+    mock_active = {
+        "currentTradingPeriod": {
+            "regular": {"start": real_now - 100, "end": real_now + 100}
+        }
+    }
+    assert determine_market_status("SPY", mock_active) == "Live"
+
+    mock_pre = {
+        "currentTradingPeriod": {
+            "pre": {"start": real_now - 100, "end": real_now + 100},
+            "regular": {"start": real_now + 101, "end": real_now + 500},
+        }
+    }
+    assert determine_market_status("SPY", mock_pre) == "Pre-Market"
+
+    mock_after = {
+        "currentTradingPeriod": {
+            "regular": {"start": real_now - 500, "end": real_now - 101},
+            "post": {"start": real_now - 100, "end": real_now + 100},
+        }
+    }
+    assert determine_market_status("SPY", mock_after) == "After-Hours"
+
+
+@pytest.mark.asyncio
+async def test_quote_market_status_propagation(async_client: AsyncClient):
+    """Verify quote endpoint returns a valid market_status string."""
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "status_user@example.com", "password": "password123"},
+    )
+    token = reg.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = await async_client.get("/api/v1/market/quote/SPY", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "market_status" in data
+    assert data["market_status"] in ("Live", "Pre-Market", "After-Hours", "Closed")

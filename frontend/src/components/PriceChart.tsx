@@ -110,12 +110,38 @@ export const PriceChart: React.FC<PriceChartProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold text-white tracking-tight">{symbol}</h3>
-              {quote && (
-                <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {quote.market_status === "Closed" ? "Market Closed (Real Feed)" : "Live Market Data"}
-                </span>
-              )}
+              {quote && (() => {
+                const status = quote.market_status || "Closed";
+                if (status === "Live") {
+                  return (
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      LIVE MARKET DATA
+                    </span>
+                  );
+                } else if (status === "Pre-Market") {
+                  return (
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      PRE-MARKET · REAL FEED
+                    </span>
+                  );
+                } else if (status === "After-Hours") {
+                  return (
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                      AFTER-HOURS · REAL FEED
+                    </span>
+                  );
+                } else {
+                  return (
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/60 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                      MARKET CLOSED · REAL FEED
+                    </span>
+                  );
+                }
+              })()}
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-400">
               <span>Open: <strong className="text-slate-200">${quote?.o?.toFixed(2) || "---"}</strong></span>

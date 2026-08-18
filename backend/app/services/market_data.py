@@ -2,8 +2,9 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, time as dtime, timedelta, timezone
 from typing import AsyncGenerator, Dict, List, Optional
+from zoneinfo import ZoneInfo
 import httpx
 import redis.asyncio as aioredis
 
@@ -124,6 +125,157 @@ async def search_symbols(query: str) -> List[SymbolSearchResult]:
     return results
 
 
+def calculate_us_market_holidays(year: int) -> set:
+    """
+    Computes exact observed NYSE / NASDAQ market holidays for a given year.
+    Includes MLK Day, Presidents Day, Good Friday, Memorial Day, Juneteenth,
+    Independence Day, Labor Day, Thanksgiving, and Christmas.
+    """
+    holidays = set()
+
+    # 1. New Year's Day (Jan 1)
+    nyd = date(year, 1, 1)
+    if nyd.weekday() == 6:
+        holidays.add(date(year, 1, 2))
+    elif nyd.weekday() != 5:
+        holidays.add(nyd)
+
+    # 2. Martin Luther King Jr. Day (3rd Monday in Jan)
+    jan1 = date(year, 1, 1)
+    first_mon_jan = jan1 + timedelta(days=(7 - jan1.weekday()) % 7)
+    holidays.add(first_mon_jan + timedelta(weeks=2))
+
+    # 3. Washington's Birthday / Presidents Day (3rd Monday in Feb)
+    feb1 = date(year, 2, 1)
+    first_mon_feb = feb1 + timedelta(days=(7 - feb1.weekday()) % 7)
+    holidays.add(first_mon_feb + timedelta(weeks=2))
+
+    # 4. Good Friday (Meeus/Jones/Butcher Computus algorithm for Western Easter)
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    easter = date(year, month, day)
+    holidays.add(easter - timedelta(days=2))
+
+    # 5. Memorial Day (Last Monday in May)
+    may31 = date(year, 5, 31)
+    holidays.add(may31 - timedelta(days=may31.weekday()))
+
+    # 6. Juneteenth National Independence Day (June 19)
+    june19 = date(year, 6, 19)
+    if june19.weekday() == 5:
+        holidays.add(date(year, 6, 18))
+    elif june19.weekday() == 6:
+        holidays.add(date(year, 6, 20))
+    else:
+        holidays.add(june19)
+
+    # 7. Independence Day (July 4)
+    july4 = date(year, 7, 4)
+    if july4.weekday() == 5:
+        holidays.add(date(year, 7, 3))
+    elif july4.weekday() == 6:
+        holidays.add(date(year, 7, 5))
+    else:
+        holidays.add(july4)
+
+    # 8. Labor Day (1st Monday in September)
+    sep1 = date(year, 9, 1)
+    holidays.add(sep1 + timedelta(days=(7 - sep1.weekday()) % 7))
+
+    # 9. Thanksgiving Day (4th Thursday in November)
+    nov1 = date(year, 11, 1)
+    first_thu_nov = nov1 + timedelta(days=(3 - nov1.weekday()) % 7)
+    holidays.add(first_thu_nov + timedelta(weeks=3))
+
+    # 10. Christmas Day (December 25)
+    xmas = date(year, 12, 25)
+    if xmas.weekday() == 5:
+        holidays.add(date(year, 12, 24))
+    elif xmas.weekday() == 6:
+        holidays.add(date(year, 12, 26))
+    else:
+        holidays.add(xmas)
+
+    return holidays
+
+
+def determine_market_status(symbol: str, meta: Optional[dict] = None) -> str:
+    """
+    Accurately determines the real market session status for US equities, ETFs, indices, and crypto.
+    Returns:
+    - 'Live' (Regular trading hours: 09:30 - 16:00 ET, Monday-Friday, non-holiday; 24/7 for crypto)
+    - 'Pre-Market' (04:00 - 09:30 ET)
+    - 'After-Hours' (16:00 - 20:00 ET)
+    - 'Closed' (Weekends, holidays, overnight)
+    """
+    sym = symbol.strip().upper()
+    # Crypto trades 24/7
+    if sym.endswith("-USD") or sym in ("BTC", "ETH", "SOL", "DOGE"):
+        return "Live"
+
+    current_unix = int(time.time())
+
+    # Provider trading period check if available
+    if meta and "currentTradingPeriod" in meta:
+        tp = meta["currentTradingPeriod"]
+        reg = tp.get("regular", {})
+        reg_start = reg.get("start", 0)
+        reg_end = reg.get("end", 0)
+        if reg_start and reg_end and reg_start <= current_unix <= reg_end:
+            return "Live"
+
+        pre = tp.get("pre", {})
+        pre_start = pre.get("start", 0)
+        pre_end = pre.get("end", 0)
+        if pre_start and pre_end and pre_start <= current_unix <= pre_end:
+            return "Pre-Market"
+
+        post = tp.get("post", {})
+        post_start = post.get("start", 0)
+        post_end = post.get("end", 0)
+        if post_start and post_end and post_start <= current_unix <= post_end:
+            return "After-Hours"
+
+    # Wall-clock Eastern Time evaluation
+    try:
+        ny_tz = ZoneInfo("America/New_York")
+        now_ny = datetime.now(ny_tz)
+
+        # Weekend check
+        if now_ny.weekday() >= 5:
+            return "Closed"
+
+        # US Holiday check
+        holidays = calculate_us_market_holidays(now_ny.year)
+        if now_ny.date() in holidays:
+            return "Closed"
+
+        t = now_ny.time()
+        if dtime(9, 30) <= t < dtime(16, 0):
+            return "Live"
+        elif dtime(4, 0) <= t < dtime(9, 30):
+            return "Pre-Market"
+        elif dtime(16, 0) <= t < dtime(20, 0):
+            return "After-Hours"
+        else:
+            return "Closed"
+    except Exception as e:
+        logger.warning(f"[MarketStatus] Error calculating market status: {e}")
+        return "Closed"
+
+
 async def fetch_real_quote_from_yahoo(sym: str) -> Optional[QuoteResponse]:
     """
     Fetches 100% real live/delayed quote from live exchange feed.
@@ -167,15 +319,8 @@ async def fetch_real_quote_from_yahoo(sym: str) -> Optional[QuoteResponse]:
                     timestamp = int(meta.get("regularMarketTime", int(time.time())))
                     company_name = meta.get("longName") or meta.get("shortName") or UNIVERSE.get(sym, {}).get("name", sym)
 
-                    # Determine market status
-                    trading_period = meta.get("currentTradingPeriod", {}).get("regular", {})
-                    reg_start = trading_period.get("start", 0)
-                    reg_end = trading_period.get("end", 0)
-                    current_unix = int(time.time())
-                    if reg_start and reg_end and reg_start <= current_unix <= reg_end:
-                        market_status = "Live"
-                    else:
-                        market_status = "Closed"
+                    # Dynamic market status based on real session and calendar
+                    market_status = determine_market_status(sym, meta)
 
                     # Get open price from candle indicators if available
                     indicators = r.get("indicators", {}).get("quote", [{}])[0]
@@ -254,7 +399,7 @@ async def fetch_quote_from_finnhub(sym: str, api_key: str) -> Optional[QuoteResp
                         timestamp=t,
                         simulated=False,
                         provider="Finnhub Real Feed",
-                        market_status="Live",
+                        market_status=determine_market_status(sym),
                         source="Finnhub Market Data",
                         c=price,
                         d=change,
@@ -427,7 +572,7 @@ async def get_ohlcv(
         candles=candles,
         simulated=False,
         provider="Yahoo Finance Real-Time",
-        market_status="Live",
+        market_status=determine_market_status(sym),
         source="Live Exchange Feed",
     )
 
@@ -553,7 +698,7 @@ async def get_market_movers(limit: int = 6) -> MarketMoversResponse:
         for i, q in enumerate(sorted_losers[:limit])
     ]
 
-    overall_status = valid_quotes[0].market_status if valid_quotes else "Live"
+    overall_status = determine_market_status("SPY")
 
     response = MarketMoversResponse(
         gainers=gainers_items,
@@ -639,7 +784,7 @@ async def get_market_pulse() -> MarketPulseResponse:
     response = MarketPulseResponse(
         indices=items,
         updated_at=int(now),
-        market_status=overall_status,
+        market_status=determine_market_status("^GSPC"),
         source="Real Market Data Feed",
         simulated=False,
     )

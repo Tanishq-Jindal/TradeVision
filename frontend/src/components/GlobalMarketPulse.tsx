@@ -62,20 +62,38 @@ export const GlobalMarketPulse: React.FC<GlobalMarketPulseProps> = ({ onSelectSy
           >
             <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin text-blue-400" : ""}`} />
           </button>
-          <div
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-              isLive
-                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                : "bg-slate-800/80 text-slate-400 border border-slate-700/60"
-            }`}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                isLive ? "bg-emerald-400 animate-pulse" : "bg-slate-400"
-              }`}
-            />
-            {isLive ? "LIVE" : "MARKET CLOSED"}
-          </div>
+          {(() => {
+            const status = data?.market_status || "Closed";
+            if (status === "Live") {
+              return (
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  LIVE
+                </div>
+              );
+            } else if (status === "Pre-Market") {
+              return (
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  PRE-MARKET
+                </div>
+              );
+            } else if (status === "After-Hours") {
+              return (
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  AFTER-HOURS
+                </div>
+              );
+            } else {
+              return (
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-800/80 text-slate-400 border border-slate-700/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                  MARKET CLOSED
+                </div>
+              );
+            }
+          })()}
         </div>
       </div>
 

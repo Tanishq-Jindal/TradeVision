@@ -201,9 +201,13 @@ export const MarketMovers: React.FC<MarketMoversProps> = ({ onSelectSymbol }) =>
           {/* 4. Footer info */}
           <div className="px-3 py-2 rounded-xl bg-slate-950/60 border border-slate-800/50 flex items-center justify-between text-[10px] text-slate-400">
             <span>
-              {data?.market_status === "Closed"
-                ? "Prices from latest market session"
-                : "Prices are real-time"}
+              {data?.market_status === "Live"
+                ? "Prices are real-time (Live Market)"
+                : data?.market_status === "Pre-Market"
+                ? "Prices from pre-market session"
+                : data?.market_status === "After-Hours"
+                ? "Prices from after-hours session"
+                : "Prices from latest market session"}
             </span>
             <span className="text-slate-400 font-medium">
               Source: {data?.source || "Market Data Feed"}
